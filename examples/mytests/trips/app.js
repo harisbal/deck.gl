@@ -2,53 +2,60 @@
 import React, {Component} from 'react';
 import {render} from 'react-dom';
 import {StaticMap} from 'react-map-gl';
-import {AmbientLight, PointLight, DirectionalLight, LightingEffect} from '@deck.gl/core';
+import {PhongMaterial} from '@luma.gl/core';
+import {AmbientLight, PointLight, LightingEffect} from '@deck.gl/core';
 import DeckGL from '@deck.gl/react';
 import {GeoJsonLayer} from 'deck.gl';
 import {TripsLayer} from '@deck.gl/geo-layers';
 import Typography from '@material-ui/core/Typography';
-import {GradientDefs, AreaSeries  } from 'react-vis';
-import Slider from '@material-ui/core/Slider';
-import {withStyles, makeStyles} from '@material-ui/core/styles';
-import {XYPlot, XAxis, YAxis, HorizontalGridLines, LineSeries} from 'react-vis';
+import Slider from '@material-ui/lab/Slider';
 import './style.css';
-
-const marks = {'animationSpeed': [{value: 0,},{value: 3600/4,},{value: 3600/2,},{value: (3600/2)+(3600/4),},{value: 3600,}],
-               'simTime': [{value: 0,},{value: (86400/4),},{value: (86400/2),},{value: (86400/2)+(86400/4),},{value: 86400,}],
-               'trailLength': [{value: 0,},{value: (86400/4),},{value: (86400/2),},{value: (86400/2)+(86400/4),},{value: 86400,}]}
-
-const myBoxShadow = '0 3px 1px rgba(0,0,0,0.1),0 4px 8px rgba(0,0,0,0.13),0 0 0 1px rgba(0,0,0,0.02)';
-const MySlider = withStyles({ root: { color: '#3880ff', height: 2, padding: '5px 0',},
-                               thumb: { height: 28,width: 28, backgroundColor: '#fff',
-                               boxShadow: myBoxShadow, marginTop: -14, marginLeft: -14,
-                               '&:focus,&:hover,&$active': { boxShadow: '0 3px 1px rgba(0,0,0,0.1),0 4px 8px rgba(0,0,0,0.3),0 0 0 1px rgba(0,0,0,0.02)',
-                                // Reset on touch devices, it doesn't add specificity
-                               '@media (hover: none)': { boxShadow: myBoxShadow, }, }, },active: {},
-                               valueLabel: {left: 'calc(-50% + 11px)', top: -22,'& *': { background: 'transparent', color: '#fff', },},
-                               track: {height: 2,},rail: { height: 2, opacity: 0.5,
-                               backgroundColor: '#fff', }, mark: { backgroundColor: '#fff', height: 8, width: 1, marginTop: -3,},
-                               markActive: { backgroundColor: 'currentColor',},})(Slider);
-
+import { withStyles, makeStyles } from '@material-ui/core/styles';
+import {XYPlot, XAxis, YAxis, HorizontalGridLines, LineSeries} from 'react-vis';
+import {GradientDefs, AreaSeries  } from 'react-vis';
 // Set your mapbox token here
 const MAPBOX_TOKEN = "pk.eyJ1IjoiaGFyaXNiYWwiLCJhIjoiY2pzbmR0cTU1MGI4NjQzbGl5eTBhZmZrZCJ9.XN4kLWt5YzqmGQYVpFFqKw";
-
+const marks = [{value: 0,},{value: 3600/4,},{value: 3600/2,},{value: (3600/2)+(3600/4),},{value: 3600,},];
+const marks2 = [{value: 0,},{value: (86400/4),},{value: (86400/2),},{value: (86400/2)+(86400/4),},{value: 86400,},];
+const iOSBoxShadow =  '0 3px 1px rgba(0,0,0,0.1),0 4px 8px rgba(0,0,0,0.13),0 0 0 1px rgba(0,0,0,0.02)';
+const IOSSlider = withStyles({ root: { color: '#3880ff', height: 2, padding: '5px 0',},
+  thumb: { height: 28,width: 28, backgroundColor: '#fff', boxShadow: iOSBoxShadow, marginTop: -14, marginLeft: -14,
+    '&:focus,&:hover,&$active': { boxShadow: '0 3px 1px rgba(0,0,0,0.1),0 4px 8px rgba(0,0,0,0.3),0 0 0 1px rgba(0,0,0,0.02)',
+      // Reset on touch devices, it doesn't add specificity
+      '@media (hover: none)': { boxShadow: iOSBoxShadow, }, }, },active: {},
+  valueLabel: {left: 'calc(-50% + 11px)', top: -22,'& *': { background: 'transparent', color: '#fff', },}, track: {height: 2,},rail: { height: 2, opacity: 0.5,
+   backgroundColor: '#fff', }, mark: { backgroundColor: '#fff', height: 8, width: 1, marginTop: -3,},markActive: { backgroundColor: 'currentColor',},})(Slider);
 let sampleSize = 1;
+let actType = 'Other';
 let variable = 0;
 let pause = true;
-let animationSpeed = 100;
-let animationSpeed2 = 100;
+let animationSpeed = 1000;
+let animationSpeed2 = 1000;
 let prevSimTime = Date.now() / 1000;
+
+let simAnchorTime = 0;
+let anchorTime = Date.now() / 1000;
 
 let toursData = require(`./inputs/tours_${sampleSize}pct.json`);
 let zonesData = require('./inputs/zones.json');
-
 let trIds = Object.keys(toursData);
-let shuffledIds = d3.shuffle([...trIds]);
-let colorTours = d3.scaleOrdinal()
-                   .domain(shuffledIds)
-                   .range(d3.schemePaired);
+
+var colorTours = d3.scaleSequential()
+                  .domain(shuffle([...trIds]))
+                  .interpolator(d3.interpolateRainbow);
 
 let data = {zones: zonesData, tours: toursData};
+
+function shuffle(a) {
+  let j, x, i;
+  for (i = a.length - 1; i > 0; i--) {
+      j = Math.floor(Math.random() * (i + 1));
+      x = a[i];
+      a[i] = a[j];
+      a[j] = x;
+  }
+  return a;
+}
 
 function secondsToHms(d) {
     d = Number(d);
@@ -74,7 +81,7 @@ function filterToursBySource(tours, zone, prop='Sources') {
   return filtered
 }
 
-function filterIncompleteTours(tours, currentTime) {  
+function filterIncompleteTours(tours, currentTime, delay=10.1) {  
   for (const tour of tours) {
     tour['Completed'] = false;
     if (tour.Timestamps[tour.Timestamps.length-1] < currentTime) {
@@ -110,7 +117,7 @@ export class App extends Component {
     super(props);
     this.state = {
       simTime: 0,
-      animationSpeed: 100,
+      animationSpeed: animationSpeed,
       trailLength: 100,
       tours: this.props.data.tours,
       isHovering: false,
@@ -142,6 +149,7 @@ export class App extends Component {
   handleMouseHover(object) {
     this.setState(this.toggleHoverState);
      variable = object.index;
+     console.log(object);
   }
 
   toggleHoverState(state) {
@@ -170,7 +178,7 @@ export class App extends Component {
   };
 
   _onAnimationSpeedChange(evnt, newAnimationSpeed){
-    this.setState({animationSpeed: newAnimationSpeed})
+    this.setState({animationSpeed: newAnimationSpeed});
     animationSpeed2 = newAnimationSpeed;
   };
 
@@ -179,7 +187,9 @@ export class App extends Component {
   };
 
   _animate() {
-    const timestamp = Date.now() / 1000;
+
+    const timestamp = Date.now() / 1000;    
+
     this.setState({ 
       simTime: this.state.simTime + (timestamp - prevSimTime) * this.state.animationSpeed
     });
@@ -188,7 +198,7 @@ export class App extends Component {
   }
 
   _filterTours() {
-    const {allTours = this.props.data.tours} = this.props;
+    const {allTours: allTours = this.props.data.tours} = this.props;
     
     let filteredTours = allTours;
     let incompleteTours;
@@ -210,17 +220,17 @@ export class App extends Component {
     this.setState({ tours: filteredTours });
   }
 
-  _onPause() {
-    if (pause) {
+  _onPause(){    
+    if (pause){ 
       animationSpeed = 0;
       pause = false;
       this.setState({animationSpeed: 0});
-    } else {
+    }else{
       pause = true;   
       this.setState({animationSpeed: animationSpeed2});
       animationSpeed = animationSpeed2;
     }
-  };
+};
 
 _onRestart(evnt){
   window.location.reload(false);
@@ -236,9 +246,11 @@ _onRestart(evnt){
         data: this.state.tours,
         getPath: d => d.Segments,
         getTimestamps: d => d.Timestamps,
+        //getColor: d => d.Completed ? completedTourColor : incompleteTourColor, //getRgbFromStr(colorstours(d.Tourid)),
         getColor: d => getRgbFromStr(colorTours(d.Tourid)),
         billboard: true,
-        widthMinPixels: 1.2,
+        opacity: 0.5,
+        widthMinPixels: 2,
         rounded: false,
         trailLength: this.state.trailLength,
         currentTime: this.state.simTime,
@@ -249,14 +261,16 @@ _onRestart(evnt){
       new GeoJsonLayer({
         id: 'boundaries',
         data: zones,
-        //getFillColor: [255, 153, 51],
         stroked: true,
         filled: true,
         pickable: true,
         extruded: false,
-        opacity: 0.05,
+        opacity: 0.10,
         onClick: this._onSelectZone,
         onHover: this.handleMouseHover,
+        updateTriggers: {
+          getFillColor: this.state.simTime
+        },
         autoHighlight: true,
         highlightColor: [0, 255, 255]
       })
@@ -316,60 +330,65 @@ _onRestart(evnt){
             {x: 3, y: variable}
           ]}/>
       </XYPlot>
+      
       </div>}
     </div>
 
-    <div className='control-panel'>
-        <div className='heading'>Bristol City:</div>
+    <div className='timer2'>
+
+        <div className='text2'>Bristol City:</div>
+
          <div>{secondsToHms(Math.floor(this.state.simTime))}</div>
          <div>
-          <Typography id="simTime-slider" gutterBottom></Typography>
-            <MySlider aria-label="Simulation Time"
+          <Typography id="range-slider" gutterBottom></Typography>
+            <IOSSlider aria-label="iOS slider"
               value={this.state.simTime}
               min={0}
               max={86400}
-              marks={marks['simTime']}
+              marks={marks2}
               onChange={this._onTimerChange}
-            />
+              aria-labelledby="range-slider"
+             />
           </div>
 
         <div>AnimationSpeed</div>
-        <span className="span"></span>
+        <span className="example"></span>
         <div>
-          <Typography id="animationSpeed-slider" gutterBottom></Typography>
-            <MySlider aria-labelledby="Animation Speed"
+          <Typography id="range-slider" gutterBottom></Typography>
+            <IOSSlider aria-label="iOS slider"
               value={Math.round(this.state.animationSpeed, 0)}
               min={0}
               max={3600}
               step = {20}
               valueLabelDisplay="on"
-              marks={marks['animationSpeed']}
+              marks={marks}
               onChange={this._onAnimationSpeedChange}
+              aria-labelledby="range-slider"
            />
           </div>     
 
-        <div>Trail length</div>
-        <span className="span"></span>
+        <div>Trail-Length</div>
+        <span className="example"></span>
         <div>
-
-        <Typography id="trailLength-slider" gutterBottom></Typography>
-          <MySlider aria-labelledby="Trail length"
+        <Typography id="range-slider" gutterBottom></Typography>
+          <IOSSlider aria-labelledby="discrete-slider-small-steps"
             value={this.state.trailLength}
             valueLabelDisplay="on"
             min={0}
             max={86400}
             step = {20}
-            marks={marks['trailLength']}
+            marks={marks2}
             onChange={this._onTrailLengthChange}
+            aria-labelledby="range-slider"
           />
         </div>
      
       <button
-        className="bnt-pause"       
+        className="bnt_Pause"       
         onClick={this._onPause}>Pause / Play</button>
 
       <button
-        className="btn-restart"        
+        className="btn_Restart"        
         onClick={this._onRestart}>Restart Script</button>   
     </div>
           
@@ -379,6 +398,7 @@ _onRestart(evnt){
 }
 
 export function renderToDOM(container) {
-  render(<App data={data} 
+  render(<App actType={actType} 
+              data={data} 
           />, container)
 }
