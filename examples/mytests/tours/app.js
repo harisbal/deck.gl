@@ -8,6 +8,7 @@ import {GeoJsonLayer} from 'deck.gl';
 import {TripsLayer} from '@deck.gl/geo-layers';
 import Typography from '@material-ui/core/Typography';
 import {GradientDefs, AreaSeries  } from 'react-vis';
+
 import Slider from '@material-ui/core/Slider';
 import {withStyles, makeStyles} from '@material-ui/core/styles';
 import {XYPlot, XAxis, YAxis, HorizontalGridLines, LineSeries} from 'react-vis';
@@ -18,19 +19,20 @@ const marks = [{value: 0,},{value: 3600/4,},{value: 3600/2,},{value: (3600/2)+(3
 const marks2 = [{value: 0,},{value: (86400/4),},{value: (86400/2),},{value: (86400/2)+(86400/4),},{value: 86400,},];
 const iOSBoxShadow =  '0 3px 1px rgba(0,0,0,0.1),0 4px 8px rgba(0,0,0,0.13),0 0 0 1px rgba(0,0,0,0.02)';
 const IOSSlider = withStyles({ root: { color: '#3880ff', height: 2, padding: '5px 0',},
-  thumb: { height: 28,width: 28, backgroundColor: '#fff', boxShadow: iOSBoxShadow, marginTop: -14, marginLeft: -14,
-    '&:focus,&:hover,&$active': { boxShadow: '0 3px 1px rgba(0,0,0,0.1),0 4px 8px rgba(0,0,0,0.3),0 0 0 1px rgba(0,0,0,0.02)',
-      // Reset on touch devices, it doesn't add specificity
-      '@media (hover: none)': { boxShadow: iOSBoxShadow, }, }, },active: {},
-  valueLabel: {left: 'calc(-50% + 11px)', top: -22,'& *': { background: 'transparent', color: '#fff', },}, track: {height: 2,},rail: { height: 2, opacity: 0.5,
-   backgroundColor: '#fff', }, mark: { backgroundColor: '#fff', height: 8, width: 1, marginTop: -3,},markActive: { backgroundColor: 'currentColor',},})(Slider);
-
+                               thumb: { height: 28,width: 28, backgroundColor: '#fff',
+                               boxShadow: iOSBoxShadow, marginTop: -14, marginLeft: -14,
+                               '&:focus,&:hover,&$active': { boxShadow: '0 3px 1px rgba(0,0,0,0.1),0 4px 8px rgba(0,0,0,0.3),0 0 0 1px rgba(0,0,0,0.02)',
+                                // Reset on touch devices, it doesn't add specificity
+                               '@media (hover: none)': { boxShadow: iOSBoxShadow, }, }, },active: {},
+                               valueLabel: {left: 'calc(-50% + 11px)', top: -22,'& *': { background: 'transparent', color: '#fff', },},
+                               track: {height: 2,},rail: { height: 2, opacity: 0.5,
+                               backgroundColor: '#fff', }, mark: { backgroundColor: '#fff', height: 8, width: 1, marginTop: -3,},
+                               markActive: { backgroundColor: 'currentColor',},})(Slider);
 
 // Set your mapbox token here
 const MAPBOX_TOKEN = "pk.eyJ1IjoiaGFyaXNiYWwiLCJhIjoiY2pzbmR0cTU1MGI4NjQzbGl5eTBhZmZrZCJ9.XN4kLWt5YzqmGQYVpFFqKw";
 
 let sampleSize = 1;
-let actType = 'Other';
 let variable = 0;
 let pause = true;
 
@@ -38,8 +40,8 @@ let prevSimTime = Date.now() / 1000;
 
 let toursData = require(`./inputs/tours_${sampleSize}pct.json`);
 let zonesData = require('./inputs/zones.json');
-let trIds = Object.keys(toursData);
 
+let trIds = Object.keys(toursData);
 let shuffledIds = d3.shuffle([...trIds]);
 let colorTours = d3.scaleOrdinal()
                    .domain(shuffledIds)
@@ -379,7 +381,6 @@ _onRestart(evnt){
 }
 
 export function renderToDOM(container) {
-  render(<App actType={actType} 
-              data={data} 
+  render(<App data={data} 
           />, container)
 }
