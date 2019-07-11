@@ -8,13 +8,11 @@ import {GeoJsonLayer} from 'deck.gl';
 import {TripsLayer} from '@deck.gl/geo-layers';
 import Typography from '@material-ui/core/Typography';
 import {GradientDefs, AreaSeries  } from 'react-vis';
-
-import Slider from '@material-ui/lab/Slider';
+import Slider from '@material-ui/core/Slider';
 import {withStyles, makeStyles} from '@material-ui/core/styles';
 import {XYPlot, XAxis, YAxis, HorizontalGridLines, LineSeries} from 'react-vis';
 
 import './style.css';
-
 
 const marks = [{value: 0,},{value: 3600/4,},{value: 3600/2,},{value: (3600/2)+(3600/4),},{value: 3600,},];
 const marks2 = [{value: 0,},{value: (86400/4),},{value: (86400/2),},{value: (86400/2)+(86400/4),},{value: 86400,},];
