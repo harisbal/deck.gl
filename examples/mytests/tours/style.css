@@ -67,8 +67,6 @@
   opacity: 1;
 }
 
-
-
 .heading{
   text-decoration: underline;
   font-size: 140%;
@@ -76,9 +74,7 @@
   padding:  1.5% 0% 1.5% 0%;
 }
 
-
 .control-panel{
-
     width: 25%;
     color : white;
     position: absolute;
