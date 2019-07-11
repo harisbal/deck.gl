@@ -17,15 +17,7 @@
 // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
-
-// Replacement for the external assert method to reduce bundle size
-// Since GeoJSON format issues are common to users we do show messages in
-// this case
-export default function assert(condition, message) {
-  if (!condition) {
-    throw new Error(`deck.gl: ${message}`);
-  }
-}
+import {log} from '@deck.gl/core';
 
 /**
  * "Normalizes" complete or partial GeoJSON data into iterable list of features
@@ -45,7 +37,7 @@ export function getGeojsonFeatures(geojson) {
     return geojson;
   }
 
-  assert(geojson.type, 'GeoJSON does not have type');
+  log.assert(geojson.type, 'GeoJSON does not have type');
 
   switch (geojson.type) {
     case 'Feature':
@@ -53,7 +45,7 @@ export function getGeojsonFeatures(geojson) {
       return [geojson];
     case 'FeatureCollection':
       // Just return the 'Features' array from the collection
-      assert(Array.isArray(geojson.features), 'GeoJSON does not have features array');
+      log.assert(Array.isArray(geojson.features), 'GeoJSON does not have features array');
       return geojson.features;
     default:
       // Assume it's a geometry, we'll check type in separateGeojsonFeatures
@@ -63,7 +55,7 @@ export function getGeojsonFeatures(geojson) {
 }
 
 // Linearize
-export function separateGeojsonFeatures(features, dataRange = {}) {
+export function separateGeojsonFeatures(features, wrapFeature, dataRange = {}) {
   const separated = {
     pointFeatures: [],
     lineFeatures: [],
@@ -75,114 +67,137 @@ export function separateGeojsonFeatures(features, dataRange = {}) {
   for (let featureIndex = startRow; featureIndex < endRow; featureIndex++) {
     const feature = features[featureIndex];
 
-    assert(feature && feature.geometry, 'GeoJSON does not have geometry');
+    log.assert(feature && feature.geometry, 'GeoJSON does not have geometry');
 
     const {geometry} = feature;
 
-    const sourceFeature = {
-      feature,
-      index: featureIndex
-    };
-
     if (geometry.type === 'GeometryCollection') {
-      assert(Array.isArray(geometry.geometries), 'GeoJSON does not have geometries array');
+      log.assert(Array.isArray(geometry.geometries), 'GeoJSON does not have geometries array');
       const {geometries} = geometry;
       for (let i = 0; i < geometries.length; i++) {
         const subGeometry = geometries[i];
-        separateGeometry(subGeometry, separated, sourceFeature);
+        separateGeometry(subGeometry, separated, wrapFeature, feature, featureIndex);
       }
     } else {
-      separateGeometry(geometry, separated, sourceFeature);
+      separateGeometry(geometry, separated, wrapFeature, feature, featureIndex);
     }
   }
 
   return separated;
 }
 
-function separateGeometry(geometry, separated, sourceFeature) {
+function separateGeometry(geometry, separated, wrapFeature, sourceFeature, sourceFeatureIndex) {
   const {type, coordinates} = geometry;
   const {pointFeatures, lineFeatures, polygonFeatures, polygonOutlineFeatures} = separated;
 
-  checkCoordinates(type, coordinates);
+  if (!validateGeometry(type, coordinates)) {
+    // Avoid hard failure if some features are malformed
+    log.warn(`${type} coordinates are malformed`)();
+    return;
+  }
 
   // Split each feature, but keep track of the source feature and index (for Multi* geometries)
   switch (type) {
     case 'Point':
-      pointFeatures.push({
-        geometry,
-        sourceFeature
-      });
+      pointFeatures.push(
+        wrapFeature(
+          {
+            geometry
+          },
+          sourceFeature,
+          sourceFeatureIndex
+        )
+      );
       break;
     case 'MultiPoint':
       coordinates.forEach(point => {
-        pointFeatures.push({
-          geometry: {type: 'Point', coordinates: point},
-          sourceFeature
-        });
+        pointFeatures.push(
+          wrapFeature(
+            {
+              geometry: {type: 'Point', coordinates: point}
+            },
+            sourceFeature,
+            sourceFeatureIndex
+          )
+        );
       });
       break;
     case 'LineString':
-      lineFeatures.push({
-        geometry,
-        sourceFeature
-      });
+      lineFeatures.push(
+        wrapFeature(
+          {
+            geometry
+          },
+          sourceFeature,
+          sourceFeatureIndex
+        )
+      );
       break;
     case 'MultiLineString':
       // Break multilinestrings into multiple lines
       coordinates.forEach(path => {
-        lineFeatures.push({
-          geometry: {type: 'LineString', coordinates: path},
-          sourceFeature
-        });
+        lineFeatures.push(
+          wrapFeature(
+            {
+              geometry: {type: 'LineString', coordinates: path}
+            },
+            sourceFeature,
+            sourceFeatureIndex
+          )
+        );
       });
       break;
     case 'Polygon':
-      polygonFeatures.push({
-        geometry,
-        sourceFeature
-      });
+      polygonFeatures.push(
+        wrapFeature(
+          {
+            geometry
+          },
+          sourceFeature,
+          sourceFeatureIndex
+        )
+      );
       // Break polygon into multiple lines
       coordinates.forEach(path => {
-        polygonOutlineFeatures.push({
-          geometry: {type: 'LineString', coordinates: path},
-          sourceFeature
-        });
+        polygonOutlineFeatures.push(
+          wrapFeature(
+            {
+              geometry: {type: 'LineString', coordinates: path}
+            },
+            sourceFeature,
+            sourceFeatureIndex
+          )
+        );
       });
       break;
     case 'MultiPolygon':
       // Break multipolygons into multiple polygons
       coordinates.forEach(polygon => {
-        polygonFeatures.push({
-          geometry: {type: 'Polygon', coordinates: polygon},
-          sourceFeature
-        });
+        polygonFeatures.push(
+          wrapFeature(
+            {
+              geometry: {type: 'Polygon', coordinates: polygon}
+            },
+            sourceFeature,
+            sourceFeatureIndex
+          )
+        );
         // Break polygon into multiple lines
         polygon.forEach(path => {
-          polygonOutlineFeatures.push({
-            geometry: {type: 'LineString', coordinates: path},
-            sourceFeature
-          });
+          polygonOutlineFeatures.push(
+            wrapFeature(
+              {
+                geometry: {type: 'LineString', coordinates: path}
+              },
+              sourceFeature,
+              sourceFeatureIndex
+            )
+          );
         });
       });
       break;
     default:
   }
-}
-
-/**
- * Returns the source feature that was passed to `separateGeojsonFeatures`
- */
-export function unwrapSourceFeature(wrappedFeature) {
-  // The feature provided by the user is under `sourceFeature.feature`
-  return wrappedFeature.sourceFeature.feature;
-}
-
-/**
- * Returns the index of the source feature that was passed to `separateGeojsonFeatures`
- */
-export function unwrapSourceFeatureIndex(wrappedFeature) {
-  // The index of the feature provided by the user is under `sourceFeature.index`
-  return wrappedFeature.sourceFeature.index;
 }
 
 /**
@@ -200,13 +215,14 @@ const COORDINATE_NEST_LEVEL = {
   MultiPolygon: 4
 };
 
-function checkCoordinates(type, coordinates) {
+export function validateGeometry(type, coordinates) {
   let nestLevel = COORDINATE_NEST_LEVEL[type];
 
-  assert(nestLevel, `Unknown GeoJSON type ${type}`);
+  log.assert(nestLevel, `Unknown GeoJSON type ${type}`);
 
   while (coordinates && --nestLevel > 0) {
     coordinates = coordinates[0];
   }
-  assert(coordinates && Number.isFinite(coordinates[0]), `${type} coordinates are malformed`);
+
+  return coordinates && Number.isFinite(coordinates[0]);
 }
