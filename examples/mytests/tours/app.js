@@ -10,7 +10,7 @@ import Typography from '@material-ui/core/Typography';
 import {GradientDefs, AreaSeries  } from 'react-vis';
 
 import Slider from '@material-ui/core/Slider';
-import {withStyles, makeStyles} from '@material-ui/core/styles';
+import {withStyles} from '@material-ui/core/styles';
 import {XYPlot, XAxis, YAxis, HorizontalGridLines, LineSeries} from 'react-vis';
 
 import './style.css';
@@ -34,17 +34,17 @@ const MySlider = withStyles({ root: { color: '#3880ff', height: 2, padding: '5px
 // Set your mapbox token here
 const MAPBOX_TOKEN = "pk.eyJ1IjoiaGFyaXNiYWwiLCJhIjoiY2pzbmR0cTU1MGI4NjQzbGl5eTBhZmZrZCJ9.XN4kLWt5YzqmGQYVpFFqKw";
 
-let sampleSize = 1;
+let sampleSizeFile = 1;
 let variable = 0;
 let pause = true;
 
 let prevSimTime = Date.now() / 1000;
 
-let toursData = require(`./inputs/tours_${sampleSize}pct.json`);
+let toursData = require(`./inputs/tours_${sampleSizeFile}pct.json`);
 let zonesData = require('./inputs/zones.json');
 
-let trIds = Object.keys(toursData);
-let shuffledIds = d3.shuffle([...trIds]);
+let tourIds = Object.keys(toursData);
+let shuffledIds = d3.shuffle([...tourIds]);
 let colorTours = d3.scaleOrdinal()
                    .domain(shuffledIds)
                    .range(d3.schemePaired);
@@ -114,6 +114,7 @@ export class App extends Component {
       animationSpeed: 100,
       trailLength: 100,
       tours: this.props.data.tours,
+      sampleSize: 1,
       isHovering: false,
       selectedZone: null
     };
@@ -123,6 +124,8 @@ export class App extends Component {
     this._onTimerChange = this._onTimerChange.bind(this);
     this._onAnimationSpeedChange = this._onAnimationSpeedChange.bind(this);
     this._onTrailLengthChange = this._onTrailLengthChange.bind(this);
+    this._onSampleSizeChange = this._onSampleSizeChange.bind(this);
+    
     this._onRestart = this._onRestart.bind(this);
     this._onPause = this._onPause.bind(this);
     this.handleMouseHover = this.handleMouseHover.bind(this);
@@ -178,6 +181,11 @@ export class App extends Component {
     this.setState({trailLength: newTrailLength})
   };
 
+  _onSampleSizeChange(evnt, newSampleSize) {
+    this.setState({sampleSize: newSampleSize/100})
+    this._filterTours()
+  };
+
   _animate() {
     const timestamp = Date.now() / 1000;
     this.setState({ 
@@ -193,17 +201,25 @@ export class App extends Component {
     let filteredTours = allTours;
     let incompleteTours;
     let sourceTours;
+    
+    const sampleSize = this.state.sampleSize;
 
     if (!allTours) {
       return;
     }
     
-    incompleteTours = filterIncompleteTours(allTours, this.state.simTime);
+    if (sampleSize < 1) {
+      const n = parseInt(filteredTours.length * sampleSize);
+      filteredTours = filteredTours.sort(() => 0.5 - Math.random()).slice(0, n);
+      let a = 1;
+    }
+
+    incompleteTours = filterIncompleteTours(filteredTours, this.state.simTime);
     
     if (!this.state.selectedZone) {
       sourceTours = incompleteTours
     } else {
-      sourceTours = filterToursBySource(allTours, this.state.selectedZone, 'Sources')
+      sourceTours = filterToursBySource(filteredTours, this.state.selectedZone, 'Sources')
     }
     
     filteredTours = incompleteTours.filter(x => sourceTours.includes(x));
@@ -248,7 +264,6 @@ _onRestart(evnt){
       new GeoJsonLayer({
         id: 'boundaries',
         data: zones,
-        //getFillColor: [255, 153, 51],
         stroked: true,
         filled: true,
         pickable: true,
@@ -279,7 +294,7 @@ _onRestart(evnt){
             {baseMap && (
               <StaticMap
                 reuseMaps
-                mapStyle="mapbox://styles/mapbox/dark-v9"
+                mapStyle="mapbox://styles/mapbox/light-v10"
                 //streets-v9 dark-v9  light-v10
                 preventStyleDiffing={true}
                 mapboxApiAccessToken={MAPBOX_TOKEN}
@@ -362,17 +377,28 @@ _onRestart(evnt){
             onChange={this._onTrailLengthChange}
           />
         </div>
-     
+
+        <Typography id="sampleSize-slider" gutterBottom></Typography>
+          <MySlider aria-labelledby="Sample Size"
+            value={parseInt(this.state.sampleSize*100)}
+            valueLabelDisplay="on"
+            min={0}
+            max={100}
+            step = {1}
+            onChangeCommitted={this._onSampleSizeChange}
+          />
+        </div>
+      
       <button
         className="bnt-pause"       
-        onClick={this._onPause}>Pause / Play</button>
+        onClick={this._onPause}>Pause / Play
+      </button>
 
       <button
         className="btn-restart"        
-        onClick={this._onRestart}>Restart Script</button>   
+        onClick={this._onRestart}>Restart Script
+      </button>   
     </div>
-          
-      </div>
     );
   }
 }
