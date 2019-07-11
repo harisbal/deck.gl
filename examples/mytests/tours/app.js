@@ -15,15 +15,17 @@ import {XYPlot, XAxis, YAxis, HorizontalGridLines, LineSeries} from 'react-vis';
 
 import './style.css';
 
-const marks = [{value: 0,},{value: 3600/4,},{value: 3600/2,},{value: (3600/2)+(3600/4),},{value: 3600,},];
-const marks2 = [{value: 0,},{value: (86400/4),},{value: (86400/2),},{value: (86400/2)+(86400/4),},{value: 86400,},];
-const iOSBoxShadow =  '0 3px 1px rgba(0,0,0,0.1),0 4px 8px rgba(0,0,0,0.13),0 0 0 1px rgba(0,0,0,0.02)';
-const IOSSlider = withStyles({ root: { color: '#3880ff', height: 2, padding: '5px 0',},
+const marks = {'animationSpeed': [{value: 0,},{value: 3600/4,},{value: 3600/2,},{value: (3600/2)+(3600/4),},{value: 3600,}],
+               'simTime': [{value: 0,},{value: (86400/4),},{value: (86400/2),},{value: (86400/2)+(86400/4),},{value: 86400,}],
+               'trailLength': [{value: 0,},{value: (86400/4),},{value: (86400/2),},{value: (86400/2)+(86400/4),},{value: 86400,}]}
+
+const myBoxShadow = '0 3px 1px rgba(0,0,0,0.1),0 4px 8px rgba(0,0,0,0.13),0 0 0 1px rgba(0,0,0,0.02)';
+const MySlider = withStyles({ root: { color: '#3880ff', height: 2, padding: '5px 0',},
                                thumb: { height: 28,width: 28, backgroundColor: '#fff',
-                               boxShadow: iOSBoxShadow, marginTop: -14, marginLeft: -14,
+                               boxShadow: myBoxShadow, marginTop: -14, marginLeft: -14,
                                '&:focus,&:hover,&$active': { boxShadow: '0 3px 1px rgba(0,0,0,0.1),0 4px 8px rgba(0,0,0,0.3),0 0 0 1px rgba(0,0,0,0.02)',
                                 // Reset on touch devices, it doesn't add specificity
-                               '@media (hover: none)': { boxShadow: iOSBoxShadow, }, }, },active: {},
+                               '@media (hover: none)': { boxShadow: myBoxShadow, }, }, },active: {},
                                valueLabel: {left: 'calc(-50% + 11px)', top: -22,'& *': { background: 'transparent', color: '#fff', },},
                                track: {height: 2,},rail: { height: 2, opacity: 0.5,
                                backgroundColor: '#fff', }, mark: { backgroundColor: '#fff', height: 8, width: 1, marginTop: -3,},
@@ -313,65 +315,60 @@ _onRestart(evnt){
             {x: 3, y: variable}
           ]}/>
       </XYPlot>
-      
       </div>}
     </div>
 
-    <div className='timer2'>
-
-        <div className='text2'>Bristol City:</div>
-
+    <div className='control-panel'>
+        <div className='heading'>Bristol City:</div>
          <div>{secondsToHms(Math.floor(this.state.simTime))}</div>
          <div>
-          <Typography id="range-slider" gutterBottom></Typography>
-            <IOSSlider aria-label="iOS slider"
+          <Typography id="simTime-slider" gutterBottom></Typography>
+            <MySlider aria-label="Simulation Time"
               value={this.state.simTime}
               min={0}
               max={86400}
-              marks={marks2}
+              marks={marks['simTime']}
               onChange={this._onTimerChange}
-              aria-labelledby="range-slider"
-             />
+            />
           </div>
 
         <div>AnimationSpeed</div>
-        <span className="example"></span>
+        <span className="span"></span>
         <div>
-          <Typography id="range-slider" gutterBottom></Typography>
-            <IOSSlider aria-label="iOS slider"
+          <Typography id="animationSpeed-slider" gutterBottom></Typography>
+            <MySlider aria-labelledby="Animation Speed"
               value={Math.round(this.state.animationSpeed, 0)}
               min={0}
               max={3600}
               step = {20}
               valueLabelDisplay="on"
-              marks={marks}
+              marks={marks['animationSpeed']}
               onChange={this._onAnimationSpeedChange}
-              aria-labelledby="range-slider"
            />
           </div>     
 
-        <div>Trail-Length</div>
-        <span className="example"></span>
+        <div>Trail length</div>
+        <span className="span"></span>
         <div>
-        <Typography id="range-slider" gutterBottom></Typography>
-          <IOSSlider aria-labelledby="discrete-slider-small-steps"
+
+        <Typography id="trailLength-slider" gutterBottom></Typography>
+          <MySlider aria-labelledby="Trail length"
             value={this.state.trailLength}
             valueLabelDisplay="on"
             min={0}
             max={86400}
             step = {20}
-            marks={marks2}
+            marks={marks['trailLength']}
             onChange={this._onTrailLengthChange}
-            aria-labelledby="range-slider"
           />
         </div>
      
       <button
-        className="bnt_Pause"       
+        className="bnt-pause"       
         onClick={this._onPause}>Pause / Play</button>
 
       <button
-        className="btn_Restart"        
+        className="btn-restart"        
         onClick={this._onRestart}>Restart Script</button>   
     </div>
           
