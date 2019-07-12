@@ -28,7 +28,7 @@ const MySlider = withStyles({ root: { color: '#3880ff', height: 2, padding: '5px
                                track: {height: 2,},rail: { height: 2, opacity: 0.5,
                                backgroundColor: '#fff', }, mark: { backgroundColor: '#fff', height: 8, width: 1, marginTop: -3,},
                                markActive: { backgroundColor: 'currentColor',},})(Slider);
-
+//MapboxAccess.ClearCache() 
 // Set your mapbox token here
 const MAPBOX_TOKEN = "pk.eyJ1IjoiaGFyaXNiYWwiLCJhIjoiY2pzbmR0cTU1MGI4NjQzbGl5eTBhZmZrZCJ9.XN4kLWt5YzqmGQYVpFFqKw";
 
@@ -38,10 +38,9 @@ let pause = true;
 let animationSpeed = 100;
 let animationSpeed2 = 100;
 let prevSimTime = Date.now() / 1000;
-
 let toursData = require(`./inputs/tours_${sampleSize}pct.json`);
 let zonesData = require('./inputs/zones.json');
-
+let show = true;
 let trIds = Object.keys(toursData);
 let shuffledIds = d3.shuffle([...trIds]);
 let colorTours = d3.scaleOrdinal()
@@ -125,8 +124,8 @@ export class App extends Component {
     this._onRestart = this._onRestart.bind(this);
     this._onPause = this._onPause.bind(this);
     this.handleMouseHover = this.handleMouseHover.bind(this);
-
     this._filterTours = this._filterTours.bind(this);
+    this._showhide = this._showhide.bind(this);
   }
 
   componentDidMount() {
@@ -164,7 +163,13 @@ export class App extends Component {
     }
     this._filterTours();
   }
-  
+
+  _showhide(){
+    show = !show;
+
+    return(show)
+  }
+
   _onTimerChange(evnt, newSimTime) {
     this.setState({simTime: newSimTime})
   };
@@ -289,8 +294,7 @@ _onRestart(evnt){
             {this._renderTooltip}        
           </DeckGL>
         </div>
-        //MapboxAccess.ClearCache() 
-
+        
       <div className="graph">
         <div
           onMouseEnter={this.handleMouseHover}
@@ -298,28 +302,31 @@ _onRestart(evnt){
         >         
         </div>
         {this.state.isHovering &&
-     <div> 
-      <XYPlot width={300} height={300}>
-        <GradientDefs>
-          <linearGradient id="CoolGradient" x1="0" x2="0" y1="0" y2="1">
-            <stop offset="0%" stopColor="white" stopOpacity={0.8}/>
-            <stop offset="100%" stopColor="red" stopOpacity={0.7} />
-          </linearGradient>
-        </GradientDefs>
-        <AreaSeries
-          color={'url(#CoolGradient)'}
-          data={[
-            {x: variable, y: variable},
-            {x: 2, y: 25},
-            {x: 2, y: variable},
-            {x: variable, y: 10},
-            {x: 3, y: variable}
-          ]}/>
-      </XYPlot>
-      </div>}
-    </div>
+       <div> 
+        <XYPlot width={300} height={300}>
+          <GradientDefs>
+           <linearGradient id="CoolGradient" x1="0" x2="0" y1="0" y2="1">
+              <stop offset="0%" stopColor="white" stopOpacity={0.8}/>
+              <stop offset="100%" stopColor="red" stopOpacity={0.7} />
+            </linearGradient>
+          </GradientDefs>
+          <LineSeries
+            data={[
+              {x: 1, y: 4},
+              {x: 2, y: 7},
+              {x: 3, y: variable},
+              {x: 4, y: 10},
+              {x: 5, y: 13},
+              {x: 6, y: 15}
+            ]}/>
+        </XYPlot>
+        </div>}
+     </div>
+ 
+    <button className={show ? 'hidden' : 'btn_showhide'}        
+        onClick={this._showhide}>Show Menu</button> 
 
-    <div className='control-panel'>
+      <div className={show ? 'control-panel' : 'hidden'}>
         <div className='heading'>Bristol City:</div>
          <div>{secondsToHms(Math.floor(this.state.simTime))}</div>
          <div>
@@ -334,7 +341,7 @@ _onRestart(evnt){
           </div>
 
         <div>AnimationSpeed</div>
-        <span className="span"></span>
+        <span className="example"></span>
         <div>
           <Typography id="animationSpeed-slider" gutterBottom></Typography>
             <MySlider aria-labelledby="Animation Speed"
@@ -349,7 +356,7 @@ _onRestart(evnt){
           </div>     
 
         <div>Trail length</div>
-        <span className="span"></span>
+          <span className="example"></span>
         <div>
 
         <Typography id="trailLength-slider" gutterBottom></Typography>
@@ -364,13 +371,15 @@ _onRestart(evnt){
           />
         </div>
      
-      <button
-        className="bnt-pause"       
+      <button className="bnt_Pause"       
         onClick={this._onPause}>Pause / Play</button>
 
-      <button
-        className="btn-restart"        
-        onClick={this._onRestart}>Restart Script</button>   
+      <button className="btn_Restart"        
+        onClick={this._onRestart}>Restart Script</button> 
+
+      <button className="btn_hide"        
+        onClick={this._showhide}>Hide Menu</button>
+
     </div>
           
       </div>
