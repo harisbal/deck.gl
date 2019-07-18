@@ -1,0 +1,35 @@
+.bnt-nextFrame {
+    top: 10%;
+    right: 10%;
+    width: 49%;
+    font-variant: small-caps;
+    position: block;
+    font-size: 70%;
+    outline: none;
+    -webkit-transition: .2s;
+    transition: opacity .2s;
+    padding:  0.5% 0.5% 0.5% 0.5%;
+    text-shadow: 0 0.04em 0.04em rgba(0,0,0,0.35);  
+    box-shadow:inset 0 -0.6em 0 -0.35em rgba(0,0,0,0.17);   
+
+}
+
+.control-panel{
+    width: 25%;
+    color : white;
+    position: absolute;
+    top: 2%;
+    left: 2%;
+    line-height: 2.0;
+    font-variant: small-caps;
+    font-size: 120%;
+    background: black;
+    border-radius: 5px;
+    outline: none;
+    opacity: 0.5;
+    -webkit-transition: .2s;
+    transition: opacity .2s;
+    padding:  0.2% 2% 0.5% 2%;
+    text-shadow: 0 0 3px #932626, 0 0 5px #932626;
+
+}

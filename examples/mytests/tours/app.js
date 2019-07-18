@@ -120,7 +120,7 @@ export class App extends Component {
     };
 
     this._onHover = this._onHover.bind(this);
-    this._onSelectZone = this._onSelectZone.bind(this);
+    this._onSelectObject = this._onSelectObject.bind(this);
     this._onTimerChange = this._onTimerChange.bind(this);
     this._onAnimationSpeedChange = this._onAnimationSpeedChange.bind(this);
     this._onTrailLengthChange = this._onTrailLengthChange.bind(this);
@@ -158,15 +158,20 @@ export class App extends Component {
     this.setState({x, y, hoveredObject: object});
   }
 
-  _onSelectZone(object) {
+  _onSelectObject(object) {
+    
+    this.setState({selectedZone: null})
+
     if (object.layer) {
       if (object.layer.id == 'boundaries') {
-        this.setState({selectedZone: object.object})  
+        this.setState({selectedZone: object.object});
+        this._filterTours();
+      } else if (object.layer.id == 'tours') {
+        this.setState({tours: [object.object]});
       }
     } else {
-        this.setState({selectedZone: null})
+      this._filterTours();
     }
-    this._filterTours();
   }
   
   _onTimerChange(evnt, newSimTime) {
@@ -195,29 +200,27 @@ export class App extends Component {
     this._animationFrame = window.requestAnimationFrame(this._animate.bind(this));
   }
 
-  _filterTours() {
+  _filterTours(singleTourSelected=false) {
     const {allTours = this.props.data.tours} = this.props;
-    
-    let filteredTours = allTours;
-    let incompleteTours;
-    let sourceTours;
-    
     const sampleSize = this.state.sampleSize;
 
-    if (!allTours) {
-      return;
+    if (singleTourSelected) {
+      return
     }
+
+    let filteredTours = allTours;
+    let incompleteTours;
+    let sourceTours;    
+
+    incompleteTours = filterIncompleteTours(filteredTours, this.state.simTime);
     
     if (sampleSize < 1) {
       const n = parseInt(filteredTours.length * sampleSize);
       filteredTours = filteredTours.sort(() => 0.5 - Math.random()).slice(0, n);
-      let a = 1;
     }
 
-    incompleteTours = filterIncompleteTours(filteredTours, this.state.simTime);
-    
     if (!this.state.selectedZone) {
-      sourceTours = incompleteTours
+      sourceTours = filteredTours;
     } else {
       sourceTours = filterToursBySource(filteredTours, this.state.selectedZone, 'Sources')
     }
@@ -247,19 +250,20 @@ _onRestart(evnt){
 
     return [
       new TripsLayer({
-        id: 'trips',
+        id: 'tours',
         data: this.state.tours,
         getPath: d => d.Segments,
         getTimestamps: d => d.Timestamps,
         getColor: d => getRgbFromStr(colorTours(d.Tourid)),
         billboard: true,
-        widthMinPixels: 1.2,
+        widthMinPixels: 2,
         rounded: false,
         trailLength: this.state.trailLength,
         currentTime: this.state.simTime,
         pickable: true,
         autoHighlight: true,
         highlightColor: [0, 255, 255],
+        onClick: this._onSelectObject
       }),
       new GeoJsonLayer({
         id: 'boundaries',
@@ -269,7 +273,7 @@ _onRestart(evnt){
         pickable: true,
         extruded: false,
         opacity: 0.05,
-        onClick: this._onSelectZone,
+        onClick: this._onSelectObject,
         onHover: this.handleMouseHover,
         autoHighlight: true,
         highlightColor: [0, 255, 255]
@@ -289,7 +293,7 @@ _onRestart(evnt){
             initialViewState={INITIAL_VIEW_STATE}
             viewState={viewState}
             controller={controller}
-            onClick={(object) => { this._onSelectZone(object)}}
+            onClick={(object) => { this._onSelectObject(object)}}
           >
             {baseMap && (
               <StaticMap
