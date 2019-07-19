@@ -107,11 +107,13 @@ export class App extends Component {
         data: zones,
         stroked: true,
         filled: true,
-        pickable: false,
+        pickable: true,
         extruded: false,
         opacity: 0.05,
         autoHighlight: false,
         highlightColor: [0, 255, 255],
+        getLineColor: [0, 255, 255],
+        getLineWidth: 20,
         onClick: (info, event) => console.log('lsoa:', info.object.properties.lsoa11cd),
       })
     ];

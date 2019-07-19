@@ -25,8 +25,10 @@ let zonesData = require('./inputs/zones.json');
 let initActsCnt = actsCntsData[0];
 let residents = Math.max(...Object.values(initActsCnt['Home']))
 
+let customScale = [-10, 20];
+
 var colorsActs = d3.scaleSequential()
-                   .domain(([0, residents]))
+                   .domain((customScale))
                    .interpolator(d3.interpolatePuRd);
 
 let data = {zonesData: zonesData, actsCnts: actsCntsData};
