@@ -8,7 +8,6 @@ import DeckGL from '@deck.gl/react';
 import {GeoJsonLayer} from 'deck.gl';
 import Slider from '@material-ui/lab/Slider';
 import './style.css';
- 
 
 // Set your mapbox token here
 const MAPBOX_TOKEN = "pk.eyJ1IjoiaGFyaXNiYWwiLCJhIjoiY2pzbmR0cTU1MGI4NjQzbGl5eTBhZmZrZCJ9.XN4kLWt5YzqmGQYVpFFqKw";
@@ -25,11 +24,12 @@ let zonesData = require('./inputs/zones.json');
 let initActsCnt = actsCntsData[0];
 let residents = Math.max(...Object.values(initActsCnt['Home']))
 
+let residentsScale = [0, residents]
 let customScale = [-10, 20];
 
 var colorsActs = d3.scaleSequential()
                    .domain((customScale))
-                   .interpolator(d3.interpolatePuRd);
+                   .interpolator(d3.interpolateOranges);
 
 let data = {zonesData: zonesData, actsCnts: actsCntsData};
 
