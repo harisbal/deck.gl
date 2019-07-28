@@ -35,6 +35,7 @@ const MAPBOX_TOKEN = "pk.eyJ1IjoiaGFyaXNiYWwiLCJhIjoiY2pzbmR0cTU1MGI4NjQzbGl5eTB
 let sampleSizeFile = 1;
 let variable = 0;
 let pause = true;
+let show = true;
 let animationSpeed = 100;
 let animationSpeed2 = 100;
 let prevSimTime = Date.now() / 1000;
@@ -175,7 +176,6 @@ export class App extends Component {
 
   _showhide(){
     show = !show;
-
     return(show)
   }
 
