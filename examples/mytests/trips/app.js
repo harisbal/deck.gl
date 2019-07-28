@@ -2,53 +2,60 @@
 import React, {Component} from 'react';
 import {render} from 'react-dom';
 import {StaticMap} from 'react-map-gl';
-import {AmbientLight, PointLight, DirectionalLight, LightingEffect} from '@deck.gl/core';
+import {PhongMaterial} from '@luma.gl/core';
+import {AmbientLight, PointLight, LightingEffect} from '@deck.gl/core';
 import DeckGL from '@deck.gl/react';
 import {GeoJsonLayer} from 'deck.gl';
 import {TripsLayer} from '@deck.gl/geo-layers';
 import Typography from '@material-ui/core/Typography';
-import {GradientDefs, AreaSeries  } from 'react-vis';
-import Slider from '@material-ui/core/Slider';
-import {withStyles} from '@material-ui/core/styles';
-import {XYPlot, XAxis, YAxis, HorizontalGridLines, LineSeries} from 'react-vis';
+import Slider from '@material-ui/lab/Slider';
 import './style.css';
-
-const marks = {'animationSpeed': [{value: 0,},{value: 3600/4,},{value: 3600/2,},{value: (3600/2)+(3600/4),},{value: 3600,}],
-               'simTime': [{value: 0,},{value: (86400/4),},{value: (86400/2),},{value: (86400/2)+(86400/4),},{value: 86400,}],
-               'trailLength': [{value: 0,},{value: (86400/4),},{value: (86400/2),},{value: (86400/2)+(86400/4),},{value: 86400,}]}
-
-const myBoxShadow = '0 3px 1px rgba(0,0,0,0.1),0 4px 8px rgba(0,0,0,0.13),0 0 0 1px rgba(0,0,0,0.02)';
-const MySlider = withStyles({ root: { color: '#3880ff', height: 2, padding: '5px 0',},
-                               thumb: { height: 28,width: 28, backgroundColor: '#fff',
-                               boxShadow: myBoxShadow, marginTop: -14, marginLeft: -14,
-                               '&:focus,&:hover,&$active': { boxShadow: '0 3px 1px rgba(0,0,0,0.1),0 4px 8px rgba(0,0,0,0.3),0 0 0 1px rgba(0,0,0,0.02)',
-                                // Reset on touch devices, it doesn't add specificity
-                               '@media (hover: none)': { boxShadow: myBoxShadow, }, }, },active: {},
-                               valueLabel: {left: 'calc(-50% + 11px)', top: -22,'& *': { background: 'transparent', color: '#fff', },},
-                               track: {height: 2,},rail: { height: 2, opacity: 0.5,
-                               backgroundColor: '#fff', }, mark: { backgroundColor: '#fff', height: 8, width: 1, marginTop: -3,},
-                               markActive: { backgroundColor: 'currentColor',},})(Slider);
-//MapboxAccess.ClearCache() 
+import { withStyles, makeStyles } from '@material-ui/core/styles';
+import {XYPlot, XAxis, YAxis, HorizontalGridLines, LineSeries} from 'react-vis';
+import {GradientDefs, AreaSeries  } from 'react-vis';
 // Set your mapbox token here
 const MAPBOX_TOKEN = "pk.eyJ1IjoiaGFyaXNiYWwiLCJhIjoiY2pzbmR0cTU1MGI4NjQzbGl5eTBhZmZrZCJ9.XN4kLWt5YzqmGQYVpFFqKw";
-
-let sampleSizeFile = 1;
+const marks = [{value: 0,},{value: 3600/4,},{value: 3600/2,},{value: (3600/2)+(3600/4),},{value: 3600,},];
+const marks2 = [{value: 0,},{value: (86400/4),},{value: (86400/2),},{value: (86400/2)+(86400/4),},{value: 86400,},];
+const iOSBoxShadow =  '0 3px 1px rgba(0,0,0,0.1),0 4px 8px rgba(0,0,0,0.13),0 0 0 1px rgba(0,0,0,0.02)';
+const IOSSlider = withStyles({ root: { color: '#3880ff', height: 2, padding: '5px 0',},
+  thumb: { height: 28,width: 28, backgroundColor: '#fff', boxShadow: iOSBoxShadow, marginTop: -14, marginLeft: -14,
+    '&:focus,&:hover,&$active': { boxShadow: '0 3px 1px rgba(0,0,0,0.1),0 4px 8px rgba(0,0,0,0.3),0 0 0 1px rgba(0,0,0,0.02)',
+      // Reset on touch devices, it doesn't add specificity
+      '@media (hover: none)': { boxShadow: iOSBoxShadow, }, }, },active: {},
+  valueLabel: {left: 'calc(-50% + 11px)', top: -22,'& *': { background: 'transparent', color: '#fff', },}, track: {height: 2,},rail: { height: 2, opacity: 0.5,
+   backgroundColor: '#fff', }, mark: { backgroundColor: '#fff', height: 8, width: 1, marginTop: -3,},markActive: { backgroundColor: 'currentColor',},})(Slider);
+let sampleSize = 1;
+let actType = 'Other';
 let variable = 0;
 let pause = true;
-let animationSpeed = 100;
-let animationSpeed2 = 100;
+let animationSpeed = 1000;
+let animationSpeed2 = 1000;
 let prevSimTime = Date.now() / 1000;
-let toursData = require(`./inputs/tours_${sampleSizeFile}pct.json`);
+
+let simAnchorTime = 0;
+let anchorTime = Date.now() / 1000;
+
+let toursData = require(`./inputs/tours_${sampleSize}pct.json`);
 let zonesData = require('./inputs/zones.json');
+let trIds = Object.keys(toursData);
 
-let tourIds = Object.keys(toursData);
-let shuffledIds = d3.shuffle([...tourIds]);
-
-let colorTours = d3.scaleOrdinal()
-                   .domain(shuffledIds)
-                   .range(d3.schemePaired);
+var colorTours = d3.scaleSequential()
+                  .domain(shuffle([...trIds]))
+                  .interpolator(d3.interpolateRainbow);
 
 let data = {zones: zonesData, tours: toursData};
+
+function shuffle(a) {
+  let j, x, i;
+  for (i = a.length - 1; i > 0; i--) {
+      j = Math.floor(Math.random() * (i + 1));
+      x = a[i];
+      a[i] = a[j];
+      a[j] = x;
+  }
+  return a;
+}
 
 function secondsToHms(d) {
     d = Number(d);
@@ -74,7 +81,7 @@ function filterToursBySource(tours, zone, prop='Sources') {
   return filtered
 }
 
-function filterIncompleteTours(tours, currentTime) {  
+function filterIncompleteTours(tours, currentTime, delay=10.1) {  
   for (const tour of tours) {
     tour['Completed'] = false;
     if (tour.Timestamps[tour.Timestamps.length-1] < currentTime) {
@@ -110,26 +117,23 @@ export class App extends Component {
     super(props);
     this.state = {
       simTime: 0,
-      animationSpeed: 100,
+      animationSpeed: animationSpeed,
       trailLength: 100,
       tours: this.props.data.tours,
-      sampleSize: 1,
       isHovering: false,
       selectedZone: null
     };
 
     this._onHover = this._onHover.bind(this);
-    this._onSelectObject = this._onSelectObject.bind(this);
+    this._onSelectZone = this._onSelectZone.bind(this);
     this._onTimerChange = this._onTimerChange.bind(this);
     this._onAnimationSpeedChange = this._onAnimationSpeedChange.bind(this);
     this._onTrailLengthChange = this._onTrailLengthChange.bind(this);
-    this._onSampleSizeChange = this._onSampleSizeChange.bind(this);
-    
     this._onRestart = this._onRestart.bind(this);
     this._onPause = this._onPause.bind(this);
     this.handleMouseHover = this.handleMouseHover.bind(this);
+
     this._filterTours = this._filterTours.bind(this);
-    this._showhide = this._showhide.bind(this);
   }
 
   componentDidMount() {
@@ -145,6 +149,7 @@ export class App extends Component {
   handleMouseHover(object) {
     this.setState(this.toggleHoverState);
      variable = object.index;
+     console.log(object);
   }
 
   toggleHoverState(state) {
@@ -157,34 +162,23 @@ export class App extends Component {
     this.setState({x, y, hoveredObject: object});
   }
 
-  _onSelectObject(object) {
-    
-    this.setState({selectedZone: null})
-
+  _onSelectZone(object) {
     if (object.layer) {
       if (object.layer.id == 'boundaries') {
-        this.setState({selectedZone: object.object});
-        this._filterTours();
-      } else if (object.layer.id == 'tours') {
-        this.setState({tours: [object.object]});
+        this.setState({selectedZone: object.object})  
       }
     } else {
-      this._filterTours();
+        this.setState({selectedZone: null})
     }
+    this._filterTours();
   }
-
-  _showhide(){
-    show = !show;
-
-    return(show)
-  }
-
+  
   _onTimerChange(evnt, newSimTime) {
     this.setState({simTime: newSimTime})
   };
 
   _onAnimationSpeedChange(evnt, newAnimationSpeed){
-    this.setState({animationSpeed: newAnimationSpeed})
+    this.setState({animationSpeed: newAnimationSpeed});
     animationSpeed2 = newAnimationSpeed;
   };
 
@@ -192,13 +186,10 @@ export class App extends Component {
     this.setState({trailLength: newTrailLength})
   };
 
-  _onSampleSizeChange(evnt, newSampleSize) {
-    this.setState({sampleSize: newSampleSize/100})
-    this._filterTours()
-  };
-
   _animate() {
-    const timestamp = Date.now() / 1000;
+
+    const timestamp = Date.now() / 1000;    
+
     this.setState({ 
       simTime: this.state.simTime + (timestamp - prevSimTime) * this.state.animationSpeed
     });
@@ -206,46 +197,40 @@ export class App extends Component {
     this._animationFrame = window.requestAnimationFrame(this._animate.bind(this));
   }
 
-  _filterTours(singleTourSelected=false) {
-    const {allTours = this.props.data.tours} = this.props;
-    const sampleSize = this.state.sampleSize;
-
-    if (singleTourSelected) {
-      return
-    }
-
+  _filterTours() {
+    const {allTours: allTours = this.props.data.tours} = this.props;
+    
     let filteredTours = allTours;
     let incompleteTours;
-    let sourceTours;    
+    let sourceTours;
 
-    incompleteTours = filterIncompleteTours(filteredTours, this.state.simTime);
-    
-    if (sampleSize < 1) {
-      const n = parseInt(filteredTours.length * sampleSize);
-      filteredTours = filteredTours.sort(() => 0.5 - Math.random()).slice(0, n);
+    if (!allTours) {
+      return;
     }
-
+    
+    incompleteTours = filterIncompleteTours(allTours, this.state.simTime);
+    
     if (!this.state.selectedZone) {
-      sourceTours = filteredTours;
+      sourceTours = incompleteTours
     } else {
-      sourceTours = filterToursBySource(filteredTours, this.state.selectedZone, 'Sources')
+      sourceTours = filterToursBySource(allTours, this.state.selectedZone, 'Sources')
     }
     
     filteredTours = incompleteTours.filter(x => sourceTours.includes(x));
     this.setState({ tours: filteredTours });
   }
 
-  _onPause() {
-    if (pause) {
+  _onPause(){    
+    if (pause){ 
       animationSpeed = 0;
       pause = false;
       this.setState({animationSpeed: 0});
-    } else {
+    }else{
       pause = true;   
       this.setState({animationSpeed: animationSpeed2});
       animationSpeed = animationSpeed2;
     }
-  };
+};
 
 _onRestart(evnt){
   window.location.reload(false);
@@ -257,12 +242,14 @@ _onRestart(evnt){
 
     return [
       new TripsLayer({
-        id: 'tours',
+        id: 'trips',
         data: this.state.tours,
         getPath: d => d.Segments,
         getTimestamps: d => d.Timestamps,
+        //getColor: d => d.Completed ? completedTourColor : incompleteTourColor, //getRgbFromStr(colorstours(d.Tourid)),
         getColor: d => getRgbFromStr(colorTours(d.Tourid)),
         billboard: true,
+        opacity: 0.5,
         widthMinPixels: 2,
         rounded: false,
         trailLength: this.state.trailLength,
@@ -270,7 +257,6 @@ _onRestart(evnt){
         pickable: true,
         autoHighlight: true,
         highlightColor: [0, 255, 255],
-        onClick: this._onSelectObject
       }),
       new GeoJsonLayer({
         id: 'boundaries',
@@ -279,9 +265,12 @@ _onRestart(evnt){
         filled: true,
         pickable: true,
         extruded: false,
-        opacity: 0.05,
-        onClick: this._onSelectObject,
+        opacity: 0.10,
+        onClick: this._onSelectZone,
         onHover: this.handleMouseHover,
+        updateTriggers: {
+          getFillColor: this.state.simTime
+        },
         autoHighlight: true,
         highlightColor: [0, 255, 255]
       })
@@ -300,12 +289,12 @@ _onRestart(evnt){
             initialViewState={INITIAL_VIEW_STATE}
             viewState={viewState}
             controller={controller}
-            onClick={(object) => { this._onSelectObject(object)}}
+            onClick={(object) => { this._onSelectZone(object)}}
           >
             {baseMap && (
               <StaticMap
                 reuseMaps
-                mapStyle="mapbox://styles/mapbox/light-v10"
+                mapStyle="mapbox://styles/mapbox/dark-v9"
                 //streets-v9 dark-v9  light-v10
                 preventStyleDiffing={true}
                 mapboxApiAccessToken={MAPBOX_TOKEN}
@@ -314,7 +303,8 @@ _onRestart(evnt){
             {this._renderTooltip}        
           </DeckGL>
         </div>
-        
+        //MapboxAccess.ClearCache() 
+
       <div className="graph">
         <div
           onMouseEnter={this.handleMouseHover}
@@ -322,106 +312,93 @@ _onRestart(evnt){
         >         
         </div>
         {this.state.isHovering &&
-       <div> 
-        <XYPlot width={300} height={300}>
-          <GradientDefs>
-           <linearGradient id="CoolGradient" x1="0" x2="0" y1="0" y2="1">
-              <stop offset="0%" stopColor="white" stopOpacity={0.8}/>
-              <stop offset="100%" stopColor="red" stopOpacity={0.7} />
-            </linearGradient>
-          </GradientDefs>
-          <LineSeries
-            data={[
-              {x: 1, y: 4},
-              {x: 2, y: 7},
-              {x: 3, y: variable},
-              {x: 4, y: 10},
-              {x: 5, y: 13},
-              {x: 6, y: 15}
-            ]}/>
-        </XYPlot>
-        </div>}
-     </div>
- 
-    <button className={show ? 'hidden' : 'btn_showhide'}        
-        onClick={this._showhide}>Show Menu</button> 
+     <div> 
+      <XYPlot width={300} height={300}>
+        <GradientDefs>
+          <linearGradient id="CoolGradient" x1="0" x2="0" y1="0" y2="1">
+            <stop offset="0%" stopColor="white" stopOpacity={0.8}/>
+            <stop offset="100%" stopColor="red" stopOpacity={0.7} />
+          </linearGradient>
+        </GradientDefs>
+        <AreaSeries
+          color={'url(#CoolGradient)'}
+          data={[
+            {x: variable, y: variable},
+            {x: 2, y: 25},
+            {x: 2, y: variable},
+            {x: variable, y: 10},
+            {x: 3, y: variable}
+          ]}/>
+      </XYPlot>
+      
+      </div>}
+    </div>
 
-      <div className={show ? 'control-panel' : 'hidden'}>
-        <div className='heading'>Bristol City:</div>
+    <div className='timer2'>
+
+        <div className='text2'>Bristol City:</div>
+
          <div>{secondsToHms(Math.floor(this.state.simTime))}</div>
          <div>
-          <Typography id="simTime-slider" gutterBottom></Typography>
-            <MySlider aria-label="Simulation Time"
+          <Typography id="range-slider" gutterBottom></Typography>
+            <IOSSlider aria-label="iOS slider"
               value={this.state.simTime}
               min={0}
               max={86400}
-              marks={marks['simTime']}
+              marks={marks2}
               onChange={this._onTimerChange}
-            />
+              aria-labelledby="range-slider"
+             />
           </div>
 
         <div>AnimationSpeed</div>
         <span className="example"></span>
         <div>
-          <Typography id="animationSpeed-slider" gutterBottom></Typography>
-            <MySlider aria-labelledby="Animation Speed"
+          <Typography id="range-slider" gutterBottom></Typography>
+            <IOSSlider aria-label="iOS slider"
               value={Math.round(this.state.animationSpeed, 0)}
               min={0}
               max={3600}
               step = {20}
               valueLabelDisplay="on"
-              marks={marks['animationSpeed']}
+              marks={marks}
               onChange={this._onAnimationSpeedChange}
+              aria-labelledby="range-slider"
            />
           </div>     
 
-        <div>Trail length</div>
-          <span className="example"></span>
+        <div>Trail-Length</div>
+        <span className="example"></span>
         <div>
-
-        <Typography id="trailLength-slider" gutterBottom></Typography>
-          <MySlider aria-labelledby="Trail length"
+        <Typography id="range-slider" gutterBottom></Typography>
+          <IOSSlider aria-labelledby="discrete-slider-small-steps"
             value={this.state.trailLength}
             valueLabelDisplay="on"
             min={0}
             max={86400}
             step = {20}
-            marks={marks['trailLength']}
+            marks={marks2}
             onChange={this._onTrailLengthChange}
+            aria-labelledby="range-slider"
           />
         </div>
-
-        <Typography id="sampleSize-slider" gutterBottom></Typography>
-          <MySlider aria-labelledby="Sample Size"
-            value={parseInt(this.state.sampleSize*100)}
-            valueLabelDisplay="on"
-            min={0}
-            max={100}
-            step = {1}
-            onChangeCommitted={this._onSampleSizeChange}
-          />
-        </div>
-      
+     
       <button
-        className="bnt-pause"       
-        onClick={this._onPause}>Pause / Play
-      </button>
+        className="bnt_Pause"       
+        onClick={this._onPause}>Pause / Play</button>
 
       <button
-        className="btn-restart"        
-        onClick={this._onRestart}>Restart Script
-      </button>
-
-      <button className="btn_hide"        
-        onClick={this._showhide}>Hide Menu
-      </button>
-
+        className="btn_Restart"        
+        onClick={this._onRestart}>Restart Script</button>   
     </div>
+          
+      </div>
     );
   }
 }
 
 export function renderToDOM(container) {
-  render(<App data={data} 
+  render(<App actType={actType} 
+              data={data} 
           />, container)
 }

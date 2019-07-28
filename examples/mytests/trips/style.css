@@ -2,56 +2,20 @@
 .graph{
     color : white;
     position: absolute;
-    top: 1.2%;
-    right: 0.6%;
+    top: 2%;
+    right: 2%;
     line-height: 1.8;
     font-variant: small-caps;
     font-size: 150%;
     background: black;
     border-radius: 5px;
     outline: none;
-    opacity: 0.7;
+    opacity: 0.8;
     -webkit-transition: .2s;
     transition: opacity .2s;
     text-shadow: 0 0 3px #932626, 0 0 5px #932626;
     }
 
-.test{
-    position: absolute;
-    top: 2%;
-    right: 50%;
-}
-
-.hidden { display:none; }
-
-.btn_showhide{
-    position: absolute;
-    top: 1.2%;
-    left: 0.6%;
-    width: 24%;
-    height: 3.5%;
-    font-variant: small-caps;
-    outline: none;
-     opacity: 0.7;
-    -webkit-transition: .2s;
-    transition: opacity .2s;
-    padding:  0.3% 0.5% 0.7% 0.5%;
-    text-shadow: 0 0.04em 0.04em rgba(0,0,0,0.35);  
-    box-shadow:inset 0 -0.6em 0 -0.35em rgba(0,0,0,0.17); 
-
-}
-.btn_hide{
-    width: 100%;
-    font-variant: small-caps;
-    position: block;
-    font-size: 70%;
-    outline: none;
-    -webkit-transition: .2s;
-    transition: opacity .2s;
-    padding:  0.5% 0.5% 0.5% 0.5%;
-    text-shadow: 0 0.04em 0.04em rgba(0,0,0,0.35);  
-    box-shadow:inset 0 -0.6em 0 -0.35em rgba(0,0,0,0.17);   
-}
 
 
 .bnt_Pause{
@@ -65,9 +29,10 @@
     padding:  0.5% 0.5% 0.5% 0.5%;
     text-shadow: 0 0.04em 0.04em rgba(0,0,0,0.35);  
     box-shadow:inset 0 -0.6em 0 -0.35em rgba(0,0,0,0.17);   
+
 }
 .btn_Restart{
-    margin-left: 2%;
+  margin-left: 2%;
     width: 49%;
     font-variant: small-caps;
     position: block;
@@ -102,19 +67,23 @@
   opacity: 1;
 }
 
-.heading{
+
+
+.text2{
   text-decoration: underline;
   font-size: 140%;
   line-height: 2.2;
   padding:  1.5% 0% 1.5% 0%;
 }
 
-.control-panel{
-    width: 20%;
+
+.timer2{
+
+    width: 25%;
     color : white;
     position: absolute;
-    top: 1.2%;
-    left: 0.6%;
+    top: 2%;
+    left: 2%;
     line-height: 2.0;
     font-variant: small-caps;
     font-size: 120%;
@@ -126,19 +95,20 @@
     transition: opacity .2s;
     padding:  0.2% 2% 0.5% 2%;
     text-shadow: 0 0 3px #932626, 0 0 5px #932626;
+
 }
-.control-panel:hover {
+.timer2:hover {
   opacity: 0.7;
 }
 
 
 .example{
-  margin-top: 0.5em;
+  margin-top: 0.6em;
   display: block;
 }
 
 
-.simTime-slider {
+.time-slider {
   font-variant: small-caps;
   color: white;
   position: absolute;
