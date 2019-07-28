@@ -29,7 +29,7 @@ let customScale = [-10, 20];
 
 var colorsActs = d3.scaleSequential()
                    .domain((customScale))
-                   .interpolator(d3.interpolateOranges);
+                   .interpolator(d3.interpolateGreens);
 
 let data = {zonesData: zonesData, actsCnts: actsCntsData};
 
@@ -186,7 +186,7 @@ export class App extends Component {
             {baseMap && (
               <StaticMap
                 reuseMaps
-                mapStyle="mapbox://styles/mapbox/dark-v9"
+                mapStyle="mapbox://styles/mapbox/light-v10"
                 preventStyleDiffing={true}
                 mapboxApiAccessToken={MAPBOX_TOKEN}
               />
