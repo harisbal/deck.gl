@@ -12,34 +12,26 @@ import './style.css';
 // Set your mapbox token here
 const MAPBOX_TOKEN = "pk.eyJ1IjoiaGFyaXNiYWwiLCJhIjoiY2pzbmR0cTU1MGI4NjQzbGl5eTBhZmZrZCJ9.XN4kLWt5YzqmGQYVpFFqKw";
 
-let sampleSize = 10;
+let sampleSize = 1;
 let actType = 'Work';
 let animationSpeed = 500 // unit time per second
 
 let simTime = 0;
 let anchorTime = Date.now() / 1000;
 
-let actsCntsData = require(`./inputs/activities_count_${sampleSize}pct.json`);
+let actHrsData = require(`./inputs/activity_hrs_${sampleSize}pct.json`);
 let zonesData = require('./inputs/zones.json');
-let initActsCnt = actsCntsData[0];
-let residents = Math.max(...Object.values(initActsCnt['Home']))
-
-let residentsScale = [0, residents]
 let customScale = [-10, 20];
 
 var colorsActs = d3.scaleSequential()
                    .domain((customScale))
                    .interpolator(d3.interpolateOranges);
 
-let data = {zonesData: zonesData, actsCnts: actsCntsData};
+let data = {zonesData: zonesData, actHrs: actHrsData};
 
 function getRgbFromStr(strRgb) {
   var color = d3.color(strRgb);
   return [color.r, color.g, color.b]  
-}
-  
-function getCurrentActsCnt(curActsCnt, actType, zoneId) {
-      return _.get(curActsCnt, `${actType}.${zoneId}`, 0);   
 }
 
 const ambientLight = new AmbientLight({
@@ -68,7 +60,7 @@ export class App extends Component {
     super(props);
     this.state = {
       time: 0,
-      actsCntsTime: 0
+      actHrsTime: 0
     };
 
     this._renderTooltip = this._renderTooltip.bind(this);
@@ -88,7 +80,7 @@ export class App extends Component {
           <div>
             <b>ActCnt</b>
           </div>
-          <div>{_.get(this.props.data.actsCnts,`${this.state.actsCntsTime}.${actType}.${hoveredObject.properties.lsoa11cd}`, 0)}</div>
+          <div>{_.get(this.props.data.actHrs,`${this.state.actHrsTime}.${actType}.${hoveredObject.properties.lsoa11cd}`, 0)}</div>
         </div>
       )
     );
@@ -113,45 +105,44 @@ export class App extends Component {
     const timestamp = Date.now() / 1000;
     this.setState({ 
       time: simTime + (timestamp - anchorTime) * this.props.animationSpeed
-    }, () => this._updateActsCntTime(this.props.data.actsCnts, this.state.time));
+    }, () => this._updateActHrsTime(this.props.data.actHrs, this.state.time));
     
     this._animationFrame = window.requestAnimationFrame(this._animate.bind(this));
   }
     
-  _updateActsCntTime(actsCnts, curTime) {
-    // Update the index of the actsCnts   
-    for (const updTime of Object.keys(actsCnts)) {
+  _updateActHrsTime(actsHrs, curTime) {
+    // Update the index of the actHrs
+    for (const updTime of Object.keys(actsHrs)) {
       if (updTime > curTime) {
-        this.setState({actsCntsTime: updTime});
+        this.setState({actHrsTime: updTime});
         return;
     }
   }
 }
   _renderLayers() {
     const {zones = this.props.data.zonesData,
-           actsCnts = this.props.data.actsCnts,
+           actHrs = this.props.data.actHrs,
            actType = this.props.actType
           } = this.props;
     
     return [
       new GeoJsonLayer({
         id: 'boundaries',
-        //data:this.state.zones,
         data: zones,
         stroked: true,
         filled: true,
         pickable: true,
-        extruded: false,
-        getFillColor: d => getRgbFromStr(colorsActs(
-                           _.get(actsCnts,`${this.state.actsCntsTime}.${actType}.${d.properties.lsoa11cd}`, 0))),
-        opacity: 0.10,
-        onClick: this._onSelectZone,
+        extruded: true,
+        getElevation: f => _.get(actHrs, `${this.state.actHrsTime}.${actType}.${f.properties.lsoa11cd}`, 0),
+        elevationScale: 0.1,
+        getFillColor: [255, 255, 255],
+        opacity: 1,
         onHover: this._onHover,
-        updateTriggers: {
-          getFillColor: this.state.time
-        },
         autoHighlight: true,
-        highlightColor: [0, 255, 255]
+        highlightColor: [0, 255, 255],
+        updateTriggers: {
+          getElevation: this.state.time
+        }
       })
     ];
   }
@@ -168,7 +159,6 @@ export class App extends Component {
             initialViewState={INITIAL_VIEW_STATE}
             viewState={viewState}
             controller={controller}
-            onClick={(object) => { this._onSelectZone(object)}}
           >
             {baseMap && (
               <StaticMap

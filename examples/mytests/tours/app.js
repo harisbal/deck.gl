@@ -37,7 +37,6 @@ let variable = 0;
 let pause = true;
 let show = true;
 let animationSpeed = 100;
-let animationSpeed2 = 100;
 let prevSimTime = Date.now() / 1000;
 let toursData = require(`./inputs/tours_${sampleSizeFile}pct.json`);
 let zonesData = require('./inputs/zones.json');
@@ -185,7 +184,7 @@ export class App extends Component {
 
   _onAnimationSpeedChange(evnt, newAnimationSpeed){
     this.setState({animationSpeed: newAnimationSpeed})
-    animationSpeed2 = newAnimationSpeed;
+    animationSpeed = newAnimationSpeed;
   };
 
   _onTrailLengthChange(evnt, newTrailLength) {    
@@ -242,8 +241,8 @@ export class App extends Component {
       this.setState({animationSpeed: 0});
     } else {
       pause = true;   
-      this.setState({animationSpeed: animationSpeed2});
-      animationSpeed = animationSpeed2;
+      this.setState({animationSpeed: animationSpeed});
+      animationSpeed = animationSpeed;
     }
   };
 
@@ -296,7 +295,6 @@ _onRestart(evnt){
         <div>
           <DeckGL
             layers={this._renderLayers()}
-            effects={[lightingEffect]}
             initialViewState={INITIAL_VIEW_STATE}
             viewState={viewState}
             controller={controller}
