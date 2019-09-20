@@ -14,12 +14,12 @@ const MAPBOX_TOKEN = "pk.eyJ1IjoiaGFyaXNiYWwiLCJhIjoiY2pzbmR0cTU1MGI4NjQzbGl5eTB
 
 let sampleSize = 1;
 let actType = 'Work';
-let animationSpeed = 500 // unit time per second
+let animationSpeed = 1000 // unit time per second
 
 let simTime = 0;
 let anchorTime = Date.now() / 1000;
 
-let actHrsData = require(`./inputs/activity_hrs_${sampleSize}pct.json`);
+let actHrsData = require(`./inputs/activity_remTime_${sampleSize}pct.json`);
 let zonesData = require('./inputs/zones.json');
 let customScale = [-10, 20];
 
