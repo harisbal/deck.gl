@@ -1,41 +1,216 @@
 
-.timer{
-    position: absolute;
-    background-color: red;
-}
-
-.time-slider {
+.graph{
+  color : white;
   position: absolute;
-  align-items: center;
-  -webkit-appearance: none;
-  left: 18%;
-  bottom: 2rem;
-  width: 60%;
-  padding:  0.6rem 1rem 0.5rem 1rem;
-  background: #d3d3d3;
-  border-radius: 20px;
+  top: 1.2%;
+  right: 0.6%;
+  line-height: 1.8;
+  font-variant: small-caps;
+  font-size: 150%;
+  background: black;
+  border-radius: 5px;
   outline: none;
-  opacity: 0.4;
+  opacity: 0.7;
   -webkit-transition: .2s;
   transition: opacity .2s;
+  text-shadow: 0 0 3px #932626, 0 0 5px #932626;
+  }
+
+.test{
+  position: absolute;
+  top: 2%;
+  right: 50%;
+}
+
+.hidden { display:none; }
+
+.btn_showhide{
+  position: absolute;
+  top: 1.2%;
+  left: 0.6%;
+  width: 24%;
+  height: 3.5%;
+  font-variant: small-caps;
+  outline: none;
+   opacity: 0.7;
+  -webkit-transition: .2s;
+  transition: opacity .2s;
+  padding:  0.3% 0.5% 0.7% 0.5%;
+  text-shadow: 0 0.04em 0.04em rgba(0,0,0,0.35);  
+  box-shadow:inset 0 -0.6em 0 -0.35em rgba(0,0,0,0.17); 
+
+}
+.btn_hide{
+  width: 100%;
+  font-variant: small-caps;
+  position: block;
+  font-size: 70%;
+  outline: none;
+  -webkit-transition: .2s;
+  transition: opacity .2s;
+  padding:  0.5% 0.5% 0.5% 0.5%;
+  text-shadow: 0 0.04em 0.04em rgba(0,0,0,0.35);  
+  box-shadow:inset 0 -0.6em 0 -0.35em rgba(0,0,0,0.17);   
+}
+
+
+.bnt_Pause{
+  width: 49%;
+  font-variant: small-caps;
+  position: block;
+  font-size: 70%;
+  outline: none;
+  -webkit-transition: .2s;
+  transition: opacity .2s;
+  padding:  0.5% 0.5% 0.5% 0.5%;
+  text-shadow: 0 0.04em 0.04em rgba(0,0,0,0.35);  
+  box-shadow:inset 0 -0.6em 0 -0.35em rgba(0,0,0,0.17);   
+}
+.btn_Restart{
+  margin-left: 2%;
+  width: 49%;
+  font-variant: small-caps;
+  position: block;
+  font-size: 70%;
+  outline: none;
+  -webkit-transition: .2s;
+  transition: opacity .2s;
+  padding:  0.5% 0.5% 0.5% 0.5%;
+  text-shadow: 0 0.04em 0.04em rgba(0,0,0,0.35);  
+  box-shadow:inset 0 -0.6em 0 -0.35em rgba(0,0,0,0.17);   
+
+}
+
+
+.timer{
+  color : white;
+  position: absolute;
+  left: 1%;
+  top: 7%;
+  font-size: 190%;
+  background: black;
+  border-radius: 10px;
+  outline: none;
+  opacity: 0.8;
+  font-variant: small-caps;
+  -webkit-transition: .2s;
+  transition: opacity .2s;
+  padding:  0.2% 0.7% 0.2% 0.9%;   
+  text-shadow: 0 0 3px #932626, 0 0 5px #932626;
+}
+.timer:hover {
+opacity: 1;
+}
+
+.heading{
+text-decoration: underline;
+font-size: 140%;
+line-height: 2.2;
+padding:  1.5% 0% 1.5% 0%;
+}
+
+.control-panel{
+  width: 20%;
+  color : white;
+  position: absolute;
+  top: 1.2%;
+  left: 0.6%;
+  line-height: 2.0;
+  font-variant: small-caps;
+  font-size: 120%;
+  background: black;
+  border-radius: 5px;
+  outline: none;
+  opacity: 0.5;
+  -webkit-transition: .2s;
+  transition: opacity .2s;
+  padding:  0.2% 2% 0.5% 2%;
+  text-shadow: 0 0 3px #932626, 0 0 5px #932626;
+}
+.control-panel:hover {
+opacity: 0.7;
+}
+
+
+.example{
+margin-top: 0.5em;
+display: block;
+}
+
+
+.simTime-slider {
+font-variant: small-caps;
+color: white;
+position: absolute;
+align-items: center;
+-webkit-appearance: none;
+left: 1%;
+bottom: 2.5%;
+width: 47%;
+padding:  0.2% 0.7% 0.2% 0.9%;
+background: black;
+border-radius: 20px;
+outline: none;
+opacity: 0.6;
+-webkit-transition: .2s;
+transition: opacity .2s;
 }
 
 .time-slider:hover {
-  opacity: 1;
+opacity: 1;
 }
 
 .time-slider::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  appearance: none;
-  width: 25px;
-  height: 25px;
-  background: #4CAF50;
-  cursor: pointer;
+-webkit-appearance: none;
+appearance: none;
+width: 25px;
+height: 25px;
+background: #4CAF50;
+cursor: pointer;
 }
 
 .time-slider::-moz-range-thumb {
-  width: 25px;
-  height: 25px;
-  background: #4CAF50;
-  cursor: pointer;
+width: 25px;
+height: 25px;
+background: #4CAF50;
+cursor: pointer;
+}
+
+
+.trailLength {
+font-variant: small-caps;
+color: white;
+position: absolute;
+align-items: center;
+-webkit-appearance: none;
+right: 1%;
+bottom: 2.5%;
+width: 47%;
+ padding:  0.2% 0.7% 0.2% 0.9%;
+background: black;
+border-radius: 20px;
+outline: none;
+opacity: 0.6;
+-webkit-transition: .2s;
+transition: opacity .2s;
+}
+
+.trailLength:hover {
+opacity: 1;
+}
+
+.trailLength::-webkit-slider-thumb {
+-webkit-appearance: none;
+appearance: none;
+width: 25px;
+height: 25px;
+background: #4CAF50;
+cursor: pointer;
+}
+
+.trailLength::-moz-range-thumb {
+width: 25px;
+height: 25px;
+background: #4CAF50;
+cursor: pointer;
 }

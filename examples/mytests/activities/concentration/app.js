@@ -25,7 +25,7 @@ let initActsCnt = actsCntsData[0];
 let residents = Math.max(...Object.values(initActsCnt['Home']))
 
 let residentsScale = [0, residents]
-let customScale = [-10, 20];
+let customScale = [-10, 10];
 
 var colorsActs = d3.scaleSequential()
                    .domain((customScale))

@@ -2,15 +2,15 @@
 import React, {Component} from 'react';
 import {render} from 'react-dom';
 import {StaticMap} from 'react-map-gl';
-import {AmbientLight, PointLight, DirectionalLight, LightingEffect} from '@deck.gl/core';
+import {AmbientLight, PointLight, LightingEffect} from '@deck.gl/core';
 import DeckGL from '@deck.gl/react';
 import {GeoJsonLayer} from 'deck.gl';
 import {TripsLayer} from '@deck.gl/geo-layers';
 import Typography from '@material-ui/core/Typography';
-import {GradientDefs, AreaSeries  } from 'react-vis';
+import {GradientDefs} from 'react-vis';
 import Slider from '@material-ui/core/Slider';
 import {withStyles} from '@material-ui/core/styles';
-import {XYPlot, XAxis, YAxis, HorizontalGridLines, LineSeries} from 'react-vis';
+import {XYPlot, LineSeries} from 'react-vis';
 import './style.css';
 
 const marks = {'animationSpeed': [{value: 0,},{value: 3600/4,},{value: 3600/2,},{value: (3600/2)+(3600/4),},{value: 3600,}],
@@ -28,7 +28,7 @@ const MySlider = withStyles({ root: { color: '#3880ff', height: 2, padding: '5px
                                track: {height: 2,},rail: { height: 2, opacity: 0.5,
                                backgroundColor: '#fff', }, mark: { backgroundColor: '#fff', height: 8, width: 1, marginTop: -3,},
                                markActive: { backgroundColor: 'currentColor',},})(Slider);
-//MapboxAccess.ClearCache() 
+
 // Set your mapbox token here
 const MAPBOX_TOKEN = "pk.eyJ1IjoiaGFyaXNiYWwiLCJhIjoiY2pzbmR0cTU1MGI4NjQzbGl5eTBhZmZrZCJ9.XN4kLWt5YzqmGQYVpFFqKw";
 
@@ -342,7 +342,8 @@ _onRestart(evnt){
      </div>
  
     <button className={show ? 'hidden' : 'btn_showhide'}        
-        onClick={this._showhide}>Show Menu</button> 
+        onClick={this._showhide}>Show Menu
+    </button> 
 
       <div className={show ? 'control-panel' : 'hidden'}>
         <div className='heading'>Bristol City:</div>
@@ -359,7 +360,7 @@ _onRestart(evnt){
           </div>
 
         <div>AnimationSpeed</div>
-        <span className="example"></span>
+          <span className="example"></span>
         <div>
           <Typography id="animationSpeed-slider" gutterBottom></Typography>
             <MySlider aria-labelledby="Animation Speed"
