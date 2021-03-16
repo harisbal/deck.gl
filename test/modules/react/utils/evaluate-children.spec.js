@@ -1,6 +1,7 @@
 import test from 'tape-catch';
 import evaluateChildren from '@deck.gl/react/utils/evaluate-children';
 import React, {createElement} from 'react';
+import {StaticMap} from 'react-map-gl';
 
 const TEST_CHILD_PROPS = {zIndex: 1};
 
@@ -12,6 +13,7 @@ const TEST_CASES = [
   },
   {
     title: 'function child',
+    // eslint-disable-next-line react/display-name
     input: props => createElement('div', Object.assign({id: 'test-func'}, props)),
     count: 1,
     expected: {
@@ -28,6 +30,14 @@ const TEST_CASES = [
     count: 2,
     expected: {
       className: 'test',
+      zIndex: undefined
+    }
+  },
+  {
+    title: 'react-map-gl Map',
+    input: createElement(StaticMap),
+    count: 1,
+    expected: {
       zIndex: 1
     }
   }

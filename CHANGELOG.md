@@ -17,15 +17,1073 @@ Each version should:
 Ref: http://keepachangelog.com/en/0.3.0/
 -->
 
+## deck.gl v8.5
+
+### deck.gl v8.5 Prereleases
+
+#### deck.gl [8.5.0-alpha.3] - Feb 25 2021
+
+- Bump luma.gl dependencies to 8.5.0-alpha (#5535)
+- Change build targets (#5528)
+- Bump loaders version to 3.0.0-alpha (#5531)
+- Syntax pass (#5520)
+- Update dev setup to support modern JS syntax (#5517)
+
+#### deck.gl [8.5.0-alpha.2] - Feb 22 2021
+
+- PathLayer: separate joint type and cap type props (#5508)
+- [react] Fix flickering in React.StrictMode (#5511)
+- Clear tooltip when viewport changes (#5509)
+
+#### deck.gl [8.5.0-alpha.1] - Feb 19 2021
+
+- Migrate DeckGL to functional component (#5495)
+- LayerManager: avoid layer update during setProps (#5494)
+- Add outline rendering to TextLayer (#5483)
+- Add background rendering to TextLayer (#5460)
+- Clean up assertions in core and layer modules (#5480)
+- Standardize autoHighlight logic in CompositeLayer (#5454)
+
+## deck.gl v8.4
+
+#### deck.gl [8.4.9] - Feb 25 2021
+
+- Fix zero height arc rendering between coordinates with different z components (#5527)
+
+#### deck.gl [8.4.8] - Feb 23 2021
+
+- Fix TileLayer fetch options (#5521)
+- Force OrbitView/OrthographicView to create non-geospatial viewports (#5525)
+
+#### deck.gl [8.4.7] - Feb 19 2021
+
+- Force using a single loader for MVT data (#5507)
+- Fix picking color values coming from a reallocated buffer (#5503)
+
+#### deck.gl [8.4.6] - Feb 16 2021
+
+- Fix for inconsistent column geometry's top cap winding order (#5492)
+- Tile3DLayer - fix render when normals are missing (#5485)
+
+#### deck.gl [8.4.5] - Feb 12 2021
+
+- Bump loaders.gl dependencies (#5477)
+- Fix ArcLayer with wrapLongitude:true at high zoom (#5478)
+
+#### deck.gl [8.4.4] - Feb 12 2021
+
+- MVT: fix picking non-binary (#5471)
+
+#### deck.gl [8.4.3] - Feb 10 2021
+
+- Fix MVTLayer loader propagation (#5455)
+- Restore default transitionInterpolator (#5459)
+
+#### deck.gl [8.4.2] - Feb 5 2021
+
+- Bump luma.gl dependencies (#5441)
+- Fix drawPickingColors usability (#5437)
+- Fix FillStyleExtension bugs (#5438)
+
+#### deck.gl [8.4.1] - Feb 3 2021
+
+- Fix controller.makeViewport when using percentage dimensions (#5431)
+
+#### deck.gl [8.4.0] - Feb 1 2021
+
+- Bump luma.gl to 8.4.0 (#5416)
+- Fix FirstPersonView "matrix not invertible" error at pitch=-90 (#5415)
+- Orbit and Ortho viewports pass additional props to the Viewport constructor (#5407)
+- Avoid silencing errors by default in CartoLayer (#5402)
+- Fix TerrainLayer error (#5404)
+
+### deck.gl v8.4 Prereleases
+
+#### deck.gl [8.4.0-beta.3] - Jan 28 2021
+
+- Fix SunLight calculation bugs (#5393)
+- Make sure layer context is reset even if a layer throws during update (#5389)
+
+#### deck.gl [8.4.0-beta.2] - Jan 27 2021
+
+- Pass isHovering to getCursor (#5386)
+- Add onInteractionStateChange callback (#5385)
+- Expose EventManager recognizer options (#5384)
+- MVT Binary data support (#5332)
+- core: support compressed textures (#5381)
+- Improve ColumnLayer perf when used without extrusion or stroke (#5380)
+- Fix S2Layer handling of coordinates across the antimeridian (#5378)
+- Fix OrthographicController with flipY: false (#5379)
+- Fix H3HexagonLayer lighting (#5377)
+- feature(core): Add pixel picking to BitmapLayer (#5341)
+- Add prop to specify winding direction in SolidPolygonLayer (#5376)
+
+#### deck.gl [8.4.0-beta.1] - Jan 22 2021
+
+- Bump luma.gl to 8.4.0-beta (#5374)
+- SolidPolygonLayer basic winding order check and winding order enforcement (#5223)
+- Fix HeatmapLayer update racing condition (#5368)
+- Controller inertia (3/3): add inertia option to controllers (#5350)
+- Controller inertia (2/3): maintain correct interaction state in controller (#5371)
+- Clean up ViewState classes (#5348)
+- More robust and simple frustum calculation (#5362)
+- Remove onViewportChange callback at MVT layer (#5366)
+- Tiles content in WGS84 for MVTLayer (#5361)
+- Fix Tile3DLayer example in gallery (#5363)
+- TileLayer add tile objects at OnViewportLoad instead of data content (#5360)
+- Abort Ongoing Requests when TileLayer is Destroyed (#5357)
+- Bump math.gl dependency => 3.4.2 (#5356)
+
+#### deck.gl [8.4.0-alpha.6] - Jan 19 2021
+
+- Abort Ongoing Tile Requests When New Tileset is Created (#5342)
+- Tile3DLayer: more reliable isLoaded test (#5355)
+- Remove 3rd party modules from @deck.gl/jupyter-widget (#5345)
+- Tile3DLayer compliance (#5333)
+- CARTO module: Integrate Maps API v2 endpoints (#5336)
+- Fix MapView center during linear zoom transition (#5318)
+- Fix: coordinate-transform return value at MVTLayer (#5316)
+- Add loaders prop to Layer class (#5309)
+- Fix TextLayer wordBreak default value (#5315)
+
+#### deck.gl [8.4.0-alpha.5] - Jan 10 2021
+
+- Fix multi-depth picking for GeoJsonLayer (#5298)
+- Fix geo-layers module peer dependencies in documentation (#5296)
+- Fix h3 layers transitions (#5287)
+- Support three-finger gesture to change pitch (#5254)
+- MVTLayer coordinates transformation to WGS84 (#5261)
+- Style helpers and CARTO colors - @deck.gl/carto  (#5251)
+- Fix picking coordinate calculation in overlapping views (#5208)
+- Include support to deck.gl/json to interpret string as a Javascript function
+- Fix MVTLayer autohighlighted feature when no featureId or uniqueProp present (#5210)
+
+#### deck.gl [8.4.0-alpha.4] - Dec 8 2020
+
+- Remove unused layer prop (#5226)
+- [test-utils] Fix generateLayerTests crash when onBeforeUpdate is not supplied (#5224)
+- Fix TextLayer transition forwarding (#5225)
+- Fix composite layer update on viewport change (#5172)
+- Support plain object as image source (#5212)
+- Pass onError prop to AnimationLoop (#5221)
+- Improve SolidPolygonLayer shaders performance (side polygons) (#5218)
+- getShaders() consistency (#5214)
+- Update outdated links in docs (#5213)
+- Simplify FontAtlasManager (#5209)
+
+#### deck.gl [8.4.0-alpha.3] - Dec 1 2020
+
+- Add image prop type (#5197)
+- Support generic transform in prop types (#5196)
+- wrapLongitude breaking change (#5184)
+- Bump math.gl dependency (#5207)
+- Fix ScenegraphLayer warnings (#5194)
+- ArcLayer wrapLongitude always draws shortest path (#5182)
+- LineLayer wrapLongitude always draws shortest path (#5176)
+- Improve TextLayer layout performance (#5175)
+- Fix TextLayer handling of unicode characters (#5168)
+- Fix GlobeView tile traversal (#5160)
+- Expose hardcoded keyboard control parameters (#5159)
+- Expose option to flip pan/rotate in controllers (#5157)
+- Add imageCoordinateSystem prop to BitmapLayer (#5154)
+- Only warn about WebGL2 support if attribute transition is used (#5155)
+- Add flipY option to OrthographicView (#5145)
+- [controller] disable move/rotate switching during panning (#5137)
+- Fix attribute transition when using Float32Array with double precision attributes (#5138)
+- Fix H3HexagonLayer in GlobeView (#5135)
+- Change default alphaCutoff to non-zero (#5129)
+- Fix: Limit for color picking cache size; overAlloc override. (#5115)
+- Remove double buffer overallocation (#5118)
+
+#### deck.gl [8.4.0-alpha.2] - Nov 12 2020
+
+- Fix: apply restrictive zoom for inline tilejson at MVTLayer (#5114)
+- Add onIconError to IconLayer (#5103)
+- CPU Aggregator accessor conformance (#5084)
+- MVT getRenderedFeatures (#4953)
+- [carto] Adapt to endpoints refactor (#5075)
+- Fix a bug polygon fill layer updates when line color changes (#5082)
+- Model Matrix for TileLayer (non-geospatial) (#5080)
+- Shader support for extreme latitude coordinates (#5081)
+- Fix using CARTESIAN coordinates in GlobeView (#5078)
+- ArcGIS 3D altitude fix (#5066)
+- [carto] Maps API v2 (#5053)
+- MimeTypes in JSONLoader (#5054)
+- Basemap module for @deck.gl/carto (#5055)
+
+#### deck.gl [8.4.0-alpha.1] - Oct 22 2020
+
+- Fix project precision on iOS 14 (#5056)
+- Fix MEAN aggregation on Windows (#5052)
+- Add aggregation mode to HeatmapLayer (#5046)
+- add onDataLoad and onDataError callbacks to CARTO layers (#5010)
+- TileJSON support to the MVTLayer (#4967)
+- Add textureParameters prop to BitmapLayer (#5031)
+
+## deck.gl v8.3
+
+#### deck.gl [8.3.2] - Oct 19 2020
+
+- Improve precision of polygon normal calculation (#5043)
+- Fix Quickly Aborted Tiles (#5044)
+
+#### deck.gl [8.3.1] - Oct 16 2020
+
+- Fix video texture in BitmapLayer (#5030)
+- [ScenegraphLayer] Fix context.animationProps undefined (#4574)
+- [CartoLayer] remap the user's updateTriggers from the parent layer (#5035)
+
+#### deck.gl [8.3.0] - Oct 12 2020
+
+- Add support for getTooltip to @deck.gl/arcgis (#5006)
+- Fix HeatmapLayer on iOS 14 (#5013)
+- Fix built-in tooltip in GoogleMapsOverlay (#5016)
+- Fix FILTER_SIZE hook in PathLayer vertex shader (#5023)
+- Bump dependencies (#5026)
+- Fix heatmap debounce (#5025)
+
+
+### deck.gl v8.3 Prereleases
+
+
+#### deck.gl [8.3.0-beta.2] - Oct 8 2020
+
+- Fix IconLayer handling of dataDiff (#4990)
+- [arcgis] Fix rendering in the latest esri release (#4994)
+- Change ImageLoader default option (#4999)
+- Picking optimization (#5000)
+
+#### deck.gl [8.3.0-beta.1] - Sep 27 2020
+
+- Support TMS (flipped-y) indexing in TileLayer (#4958)
+- MVTLayer: support globe view (#4961)
+- Fix TextLayer getText update trigger (#4988)
+
+#### deck.gl [8.3.0-alpha.1] - Sep 27 2020
+
+- Bump loaders.gl and math.gl dependencies (#4972)
+- Add @deck.gl/carto module (#4925)
+- Add high precision mode to PathStyleExtension (#4951)
+- Avoid canvas resizing when not owned by deck.gl (#4949)
+- Add GPU-based counter to DataFilterExtension (#4942)
+- Add onTileUnload callback for TileLayer (#4936)
+- jupyter-widget: event-handling via transport (#4859)
+- Ability to abort ongoing tile requests if there are too many (#4838)
+- mesh-layers: SimpleMeshLayer.props._useMeshColors (#4871)
+- jupyter-widget: playground no longer directly accessed jupyterWidget (#4860)
+- jupyter-widget:  generic event handling (#4848)
+- [google-maps] support styles prop (#4812)
+- Do not create unnecessary picking colors buffer (#4807)
+- core: Add experimental optimization options (#4803)
+- bump babel dependencies (#4801)
+- Use mesh color in SimpleMeshLayer (#4769)
+
+## deck.gl v8.2
+
+#### deck.gl [8.2.8] - Sep 8 2020
+
+- Fix TextLayer sdf mode (#4911)
+- Fix layer index resolution in picking (#4915)
+- Get current layer instance for TileLayer (#4901)
+
+#### deck.gl [8.2.7] - Aug 29 2020
+
+- Support getCursor in ArcGIS integration (#4896)
+
+#### deck.gl [8.2.6] - Aug 16 2020
+
+- Ability to use mesh color in SimpleMeshLayer (#4868)
+- Fix async iterable data diff handling (#4875)
+- Avoid using deprecated KeyboardEvent.keycode (#4885)
+- Support changing mapStyle in standalone bundle (#4886)
+
+#### deck.gl [8.2.5] - Aug 3 2020
+
+- Fix module parameters on newly created model (#4835)
+- Fix picking with multiple views (#4842)
+
+#### deck.gl [8.2.4] - July 29 2020
+
+- [jupyter-widget] Modify Mapbox warning suppression logic (#4776)
+- [google-maps] fix error when click on POI marker (#4810)
+- [google-maps] Support dblclick event (#4811)
+- Forward more props from TerrainLayer to TileLayer (#4805)
+- [jupyter-widget] Correct data buffer issue (#4832)
+
+#### deck.gl [8.2.3] - July 8 2020
+
+- Fix MapboxLayer error after Deck is finalized (#4782)
+- ArcLayer: Make source and target available for injection (#4788)
+- Fix bug in variable width attribute generation when first element has length 0 (#4790)
+- Make sure uniform transition fromValue is defined (#4786)
+
+#### deck.gl [8.2.2] - July 8 2020
+
+- Fix constant update when using TileLayer with repeated maps (#4753)
+
+#### deck.gl [8.2.1] - July 6 2020
+
+- Fix TextLayer fragment shader in Edge Legacy browser (#4750)
+
+#### deck.gl [8.2.0] - June 28 2020
+
+- Upgrade luma.gl dependencies to 8.2.0 (#4736)
+- Fix request scheduler not cancelling deselected tiles (#4739)
+
+
+### deck.gl v8.2 Prereleases
+
+#### deck.gl [8.2.0-beta.3] - June 27 2020
+
+- Safe guard viewport activation (#4732)
+- Fix coordinate when picking in multiple views (#4730)
+- Fix transition bugs (#4729)
+- Remove throttleRequests TileLayer prop (#4727)
+- Fix bundle config (#4725)
+
+#### deck.gl [8.2.0-beta.2] - June 25 2020
+
+- Improve the consistency of controller behavior (#4692)
+- FillStyleExtension supports MVTLayer (#4720)
+- Bump loaders.gl to 2.2.3 (#4710)
+- Set per-layer viewportChanged flag (#4722)
+
+#### deck.gl [8.2.0-beta.1] - June 20 2020
+
+- Fix MVTLayer projection precision (#4699)
+- Bump loaders.gl to 2.2.2 (#4700)
+- Call onHover on all affected layers (#4697)
+- Initial DataManager (#4670)
+- Bump math.gl and loaders.gl (#4693)
+- Relax maxPitch in terrain example (#4686)
+- Fix onHover/tooltip flickering (#4685)
+- wrapLongitude support for GeoJSON (#4684)
+- Extract children from Fragment too (#4681)
+- TileLayer Request scheduler (#4645)
+- PathLayer and SolidPolygonLayer support globe projection (#4674)
+- Initialize new layers with the current viewport (#4673)
+- Add FillStyleExtension (#4676)
+- Fix GreatCircleLayer rendering bug (#4677)
+- pydeck: Support description card UI element (#4656)
+- Resolve promise before calling renderSubLayers in TileLayer (#4658)
+- [test-utils] Add testLayerAsync (#4659)
+
+#### deck.gl [8.2.0-alpha.3] - June 8 2020
+
+-  BitmapLayer supports globe projection (#4655)
+-  Merge ArcLayer and GreatCircleLayer (#4650)
+-  Globe Projection (PR3) (#4641)
+-  Globe Projection (PR2) (#4640)
+-  deck.gl transport: Support multiple connections (#4654)
+-  Highlight features spread across tiles (#4365)
+-  Globe Projection (PR 1) (#4639)
+
+#### deck.gl [8.2.0-alpha.2] - June 4 2020
+
+- pydeck: Add Google Maps base maps to pydeck (#4632)
+- @deck.gl/json and @deck.gl/jupyter-widget: Increase test coverage (#4636)
+- TileLayer: adjust zoom by tileSize (#4616)
+- Adding points by pixels to ScatterplotLayer (#4624)
+- Use frustum culling in OSM tile traversal (#4593)
+- pydeck + @deck.gl/jupyter-widget: Support bidirectional communication with new transport abstraction (#4613)
+- Add viewport.getBounds (#4592)
+- jupyter widget transport refactor (#4572)
+- pydeck: Update @jupyter-widgets/base to support JupyterLab v2 (#4573)
+- Add extent prop to TileLayer (#4526)
+- [bin-sortor] correctly sort all values (#4528)
+
+#### deck.gl [8.2.0-alpha.1] - Apr 1 2020
+
+- Fix GeoJSON multi-geometry highlighting (#4426)
+- @deck.gl/jupyter-widget: Remove Tile3DLoader (#4438)
+- @deck.gl/jupyter-widget and pydeck: Fix binary data bug (#4416)
+- pydeck/jupyter-widget: Call mergeConfiguration again after addCustomLibraries complete (#4413)
+- Add zRange prop to TileLayer for use with TerrainLayer (#4397)
+- Fix PointCloud sizeUnits as "meters" (#4421)
+- Fix GeoJsonLayer's handling of highlightedObjectIndex (#4403)
+- layers: pass loadOptions to IconManager from IconLayer (#4404)
+
+## deck.gl v8.1
+
+#### deck.gl [8.1.0] - Mar 17 2020
+
+- Bump loaders.gl; fix website build (#4391)
+- Fix PostProcessEffect settings (#4389)
+- Fix polygon offset calculation in TileLayer (#4388)
+- Add support for multiple H3 resolutions to H3HexagonLayer (#4381)
+- Bump luma.gl and loaders.gl dependencies (#4402)
+
+### deck.gl v8.1 Prereleases
+
+#### deck.gl [8.1.0-beta.3] - Mar 13 2020
+
+- playground: add back Cairo 3d tiles example and bump luma (#4386)
+
+#### deck.gl [8.1.0-beta.2] - Mar 13 2020
+
+- geo-layers: API audit for tile-3d-layer and bump loaders (#4384)
+
+#### deck.gl [8.1.0-beta.1] - Mar 11 2020
+
+- Fix TerrainLayer support for single mesh (#4378)
+- geo-layers: refactor tile-3d-layer (#4319)
+- Terrain layer API audit (#4377)
+- pydeck: fix repeated script loading (#4376)
+- TileLayer and MVTLayer API audit (#4372)
+- Rename MVTTileLayer to MVTLayer (#4368)
+- Fix jumpy projection using WEB_MERCATOR_AUTO_OFFSET with CARTESIAN coordinates (#4374)
+- Fix TileLayer crash when renderSubLayers returns array (#4362)
+- Clean up ArcGISDeckLayer api (#4363)
+- Terrain layer bug fixes (#4367)
+- Improve flatten perf (#4361)
+- Add clipping to MVTTileLayer (#4336)
+- Fix projectPosition in CARTESIAN coordinate system (#4335)
+- Workaround for invalid attribute index access (#4344)
+- pydeck: Support rendering in Google Collab (#4337)
+- [arcgis] Fix .gl and .state access (#4338)
+- Remove s2-geometry dependency (#4311)
+
+#### deck.gl [8.1.0-alpha.6] - Mar 1 2020
+
+- [test-utils] Fix testLayer (#4334)
+- TileLayer: expose tileSize prop (#4332)
+- MVT Tile Layer (#3935)
+- Improve TerrainLayer loading experience (#4312)
+- Fix package.json for modules/arcgis (#4306)
+- Use luma.gl in arcgis module (#4302)
+
+#### deck.gl [8.1.0-alpha.5] - Feb 22 2020
+
+- ArcGIS module and sample app (#4252)
+- Clean up ArcGIS module API and docs (#4301)
+- TerrainLayer fixes (#4297)
+
+#### deck.gl [8.1.0-alpha.4] - Feb 20 2020
+
+- [google-maps] fix occasional crash during resize (#4269)
+- Fix A-B-A path rendering (#4271)
+- Refactor TerrainLayer for performance and ease of use. (#4275)
+- Fix using constant for SimpleMeshLayer getColor (#4277)
+- Fix attribute check greater than attribute size (#4288)
+- Add layer.isLoaded (#4276)
+- pydeck and @deck.gl/jupyter-widget: Add support for dynamic deck.gl custom Layer registration (#4233)
+- TileLayer API audit (#4246)
+- TerrainLayer integration (#4278)
+
+#### deck.gl [8.1.0-alpha.3] - Feb 11 2020
+
+-  [react] Fix support for mix-blend-mode style (#4260)
+-  Handle edge case in google-maps view state calculation (#4259)
+-  [google-maps] support lower zoom levels (#4247)
+-  Fix bundle dependencies (#4255)
+-  Use luma.gl transpilation to consolidate mesh layer shaders (#4253)
+-  [mapbox] support repeating at low zoom levels (#4248)
+-  Add example: H3GridLayer (#4179)
+-  Bump luma to 8.1.0-alpha.2 (#4240)
+-  Move BaseTileLayer to geo-layers (#4232)
+-  Add Experimental Layer: TerrainLayer (#3984)
+
+#### deck.gl [8.1.0-alpha.2] - Feb 4 2020
+
+- Support binary data in TextLayer (#4206)
+- TileLayer improvements (#4139)
+- tile-3d-layer: expose picked tile when enable picking (#4207)
+- Fix transition for 64bit attributes (#4226)
+- [Binary support, part 1] pydeck: Binary transport (#4167)
+- Fix SimpleMeshLayer shading (#4214)
+- TextLayer improvements (#4205)
+- [React] fix missing key error (#4193)
+- [Bug] Fix hexagon layer projection (#4173)
+- @deck.gl/json: Fix bug dropping props with falsy values (#4185)
+- Fix buffer size check in Attribute.updateBuffer (#4190)
+- Bump luma dependency (#4191)
+- data-filter: support double precision (#4163)
+- Use int type for enum uniforms (#4171)
+- [TileLayer] fix tile indices generation in edge cases (#4170)
+
+#### deck.gl [8.1.0-alpha.1] - Jan 17 2020
+
+- Voodoo fix for Mac+NVIDIA bug (#4166)
+- Remove unnecessary code from project glsl (#4162)
+- Fix H3HexagonLayer update when viewport jumps (#4158)
+- Refactor render tests; use stricter pass criteria (#4157)
+- [Extension] Add source_target to brushing mode (#4150)
+- Add offset feature to PathStyleExtension (#4126)
+- Project module: support pre-projected positions (#4140)
+- Repeat maps at low zoom levels (#4105)
+- IconLayer: fix copy texture data when resize (#4151)
+- Path layer vertex shader improvements (#4111)
+- Bump mjolnir.js dependency (#4141)
+- Error handling (#4135)
+- IconLayer: use load instead of loadImage to load icons (#4137)
+- Bump loaders.gl (#4136)
+- Non-Geospatial TileLayer (#4117)
+- Remove unused dependencies from geo-layers (#4127)
+- Support initialViewState updates (#4038)
+- Fix support for luma.gl buffers as external attributes (#4121)
+- [react] explicitly set deck canvas position (#4124)
+
+#### deck.gl [8.1.0-alpha.0] - Jan 08 2020
+
+- pydeck: Reduce JupyterLab bundle size (#4110)
+- fix cursor style in React (#4118)
+- GPUGridAggregator: Add WA for ANGLE specific bug. (#4113)
+- fix debug bundle warning (#4107)
+- pydeck: Simplify setup.py and add JupyterLab installation instructions (#4096)
+- fix react key warning (#4098)
+- Fix randomly failed icon layer render test (#4079)
+- update evaluate-children to pass deck gl view ports to children with deckGLViewProps (#4092)
+- clean up prop handling (#4080)
+- Clean up hover handling (#4081)
+
+## deck.gl v8.0
+
+#### deck.gl [8.0.17] - Mar 03 2020
+
+- PathLayer: Workaround for invalid attribute index access (#4344)
+
+#### deck.gl [8.0.16] - Feb 20 2020
+
+- Fix attribute check greater than attribute size (#4288)
+- Fix using constant with SimpleMeshLayer's getColor (#4277)
+
+#### deck.gl [8.0.15] - Feb 14 2020
+
+- [react] Fix support for mix-blend-mode style (#4260)
+- fix 64-bit precision in low-end GPUs (#4261)
+
+#### deck.gl [8.0.14] - Feb 10 2020
+
+- Fix bundle dependencies (#4255)
+
+#### deck.gl [8.0.13] - Feb 4 2020
+
+- Fix transition for 64bit attributes (#4226)
+
+#### deck.gl [8.0.12] - Jan 30 2020
+
+- Fix SimpleMeshLayer shading (#4214)
+
+#### deck.gl [8.0.11] - Jan 23 2020
+
+- [Bug] Fix hexagon layer projection (#4173)
+
+#### deck.gl [8.0.10] - Jan 23 2020
+
+- @deck.gl/json: Fix bug dropping props with falsy values (#4185)
+- Fix buffer size check in Attribute.updateBuffer (#4190)
+- Bump luma dependency (#4191)
+- Fix modelMatrix application in the project module (#4182)
+
+#### deck.gl [8.0.9] - Jan 18 2020
+
+- Fix H3HexagonLayer update when viewport jumps (#4158)
+- Voodoo fix for Mac+NVIDIA bug (#4166)
+
+#### deck.gl [8.0.8] - Jan 16 2020
+
+- [Extension] Add source_target to brushing mode (#4150)
+
+#### deck.gl [8.0.7] - Jan 15 2020
+
+- IconLayer: fix copy texture data when resize (#4151)
+- Bump mjolnir.js dependency (#4141)
+
+#### deck.gl [8.0.6] - Jan 13 2020
+
+- IconLayer: use load instead of loadImage to load icons (#4137)
+- Bump loaders.gl (#4136)
+- Remove unused dependencies from geo-layers (#4127)
+
+#### deck.gl [8.0.5] - Jan 9 2020
+
+- [react] explicitly set deck canvas position (#4124)
+- Fix support for luma.gl buffers as external attributes (#4121)
+
+#### deck.gl [8.0.4] - Jan 8 2020
+
+- Fix randomly failed icon layer render test (#4079)
+- fix react key warning (#4098)
+- fix debug bundle warning (#4107)
+- GPUGridAggregator: Add WA for ANGLE specific bug. (#4113)
+- fix cursor style in React (#4118)
+- Reduce JupyterLab bundle size (#4110)
+
+#### deck.gl [8.0.3] - Jan 3 2020
+
+- warn if initialViewState and viewState are both present (#4078)
+- @deck.gl/jupyter-widget: Change version variable for CDN-based Jupyter Lab widget (#4087)
+- Fix inline versioning (#4086)
+- Update bundle config (#4088)
+- pydeck: Add CDN-hosted bundle for standalone HTML rendering (#4003)
+- @deck.gl/jupyter-widget: Read version and module name from bundle for Jupyter Lab (#4089)
+- @deck.gl/react: pass viewports to children with deckGLViewProps (#4092)
+
+#### deck.gl [8.0.2] - Jan 2 2020
+
+- Fix flyToInterpolator crash when transitioning to the same viewport center (#4084)
+
+#### deck.gl [8.0.1] - Dec 21 2019
+
+- improve version detection (#4070)
+- Fix hover event bubbling (#4071)
+- Bump dependencies (#4074)
+
+#### deck.gl [8.0.0] - Dec 21 2019
+
+- set React wrapper's z-index (#4068)
+- Bump dependencies to production versions (#4066)
+- fix 3d tiles culling (#4064)
+- AggregationLayer: various fixes (#4062)
+- Bump loaders and fix infinite updateState calls (#4061)
+- Fix `layer.projectPositions` with default coordinate system (#4056)
+- Fix frustum plane calculation (#4050)
+- fix bundle transpilation (#4048)
+- AggregationLayers: Update and improve unit test coverage. (#4046)
+- AggregationLayer : Improve aggregation state management (#4008)
+- Fix bundle transpilation (#4042)
+
+### deck.gl v8.0 Prereleases
+
+#### deck.gl [8.0.0-beta.2] - Dec 17 2019
+
+- Fix ScenegraphLayer asset wait (#4025)
+- pydeck: Update for new @deck.gl/json API and add additional tes… (#4020)
+- Smooth edges in scatterplot (#4021)
+- Fix s2 layer polygon generation (#4024)
+- Tweak to scenegraph layer fix (#4027)
+- Bump math.gl and probe.gl dependencies (#4029)
+- React module fixes (#4032)
+- [Fix]: CPU Aggregation: filter out points outside of viewport. (#4026)
+- Support preprojection in PolygonTesselator (#4035)
+- Fix WebGL BlendEquation warnings (#4037)
+- Layer bug fixes (#4040)
+
+#### deck.gl [8.0.0-beta.1] - Dec 13 2019
+
+- bump loaders.gl to beta.5 (#4018)
+- pydeck: Make a single bundle for use in standalone and Jupyter rendering (#4010)
+- Clean up LayerManager (#4011)
+- Audit assert usages (#4012)
+- React: eventManager listens to all children (#4013)
+- Bump loaders.gl to 2.0.0-beta (#4009)
+- TextLayer: support background color (#3903)
+- Improve createProps perf (#4007)
+- Icon layer: Use 2D positions to match vertex shader (#3736)
+- @deck.gl/json: Fix function lookups in classes (#3995)
+- TileLayer: change onViewportLoaded to onViewportLoad (#3997)
+- Fix bundle config (#3992)
+- Prop rename: filterData to _filterData (#3989)
+- Voodoo fix for polygon rendering on Linux/Intel (#3990)
+
+#### deck.gl [8.0.0-alpha.2] - Dec 10 2019
+
+- ContourLayer: optimize sublayer prop setup (#3985)
+- Enable composeModelMatrix for meshlayers (#3977)
+- Remove `experimental` export, use underscores (#3982)
+- Various bug fixes for using binary data (#3987)
+
+#### deck.gl [8.0.0-alpha.1] - Dec 9 2019
+
+- Tile3DLayer: v8.0 audit (#3972)
+- move project64 module to extensions (#3981)
+- GPUGridAggregator: use fp64arithmetic module instead of fp64 (#3978)
+- CPUAggregation Refactor : Grid and Hexagon Layers, use attributes for position (#3951)
+- @deck.gl/json: Use @@type to register convertible classes (#3958)
+- Upgrade probe.gl (part 2) (#3973)
+- upgrade probe.gl (#3971)
+- Clean up change flags handling in Layer class (#3968)
+- reuse instancePickingColor array (#3969)
+- Debug API (#3957)
+- pydeck: Set fewer defaults within Python API (#3960)
+- Clean up layer internal state (#3955)
+- [JupyterLab support] Enable JupyterLab for pydeck (#3638)
+- Projection modes (#3950)
+- Improve AttributeManager logging perf (#3941)
+- More luma updates (#3942)
+- Remove seer integration (#3940)
+- Remove texture flip (#3939)
+- Fix polygon offset (#3938)
+- Updates to luma 8.0 alpha 10 (#3934)
+- Fix FirstPersonView and FirstPersonController (#3924)
+- Move PathLayer getDashArray feature to an extension (#3922)
+- Simplify bundle luma exports (#3913)
+- Support binary logical attributes in PathLayer and SolidPolygonLayer (#3916)
+- Various core deprecations (#3919)
+- Add option to skip normalization in PolygonLayer (#3921)
+- Bump h3-js (#3918)
+- Optimize (#3906)
+- Move substantial data operation inside unit tests (#3917)
+- Support binary logical attributes (#3898)
+- Add option to skip normalization in tesselators (#3905)
+- Handle offset in DataColumn (#3902)
+- Light tesselator refactor (#3901)
+- Support variable-width values in auto update (#3897)
+- Change bufferLayout to startIndices (#3894)
+- simplify PathLayer attributes (#3889)
+- Support 3D in ArcLayer (#3888)
+- Use 3D 64-bit positions (#3885)
+- Fix playground example and website examples (#3883)
+- Bump to luma 8.0 (#3868)
+- [v8.0] Change layer opacity default to 1 (#3879)
+- Fix view state handling (#3870)
+- [v8.0] Scripting API update (#3880)
+- Remove dependency on `registerShaderModule` (#3882)
+- AggregationLayer : minor fixes and unit tests. (#3851)
+- remove deprecated layer props (#3878)
+- Layer class deprecations (#3877)
+- Implement min/max pixels for scenegraph-layer (#3382)
+- v8.0 TripsLayer API change (#3874)
+- Bump loaders.gl dependencies (#3862)
+- Fix attribute constant comparison (#3872)
+- Attribute class refactor (#3852)
+- Zoom-independent common space (#3841)
+- Optionally surface pydeck warnings in widget UI (#3785)
+- Integrate all aggregation layers with AttributeManager (#3777)
+- viewport/projection related deprecations (#3832)
+- TextLayer: support text auto wrapping (#3682)
+- ScreenGridLayer: Split into Composite and SubLayer (#3726)
+
+
+### deck.gl v7.4 Prereleases
+
+#### deck.gl [v7.4.0-alpha.2] - Oct 4 2019
+
+- TileLayer cache rendered sub layers (#3730)
+- HeatmapLyaer: set point size to address ANGLE bug (#3732)
+- clean up render passes (#3733)
+- GPUGridAggregator: enforce point size to workaround ANGLE bug (#3738)
+- Add `pass` parameter to layerFilter (#3739)
+- Improve auto-highlight related perf (#3740)
+- Effects system clean up (#3743)
+- Fix 3d picking projection with camera offset (#3749)
+- Support rendering to custom framebuffer (#3742)
+
+#### deck.gl [v7.4.0-alpha.1] - Oct 2 2019
+
+- delete deprecated buffer props (#3651)
+- Consolidate picking injection (#3720)
+- Picking 3D point (#3721)
+- Add domain method to scales (#3631)
+- Integrate Quantile and Ordinal scaling (#3609)
+- Clean up picking code (#3724)
+
+
+## deck.gl v7.3
+
+#### deck.gl [v7.3.7] - Dec 10 2019
+
+- Voodoo fix for polygon rendering on Linux/Intel (#3990)
+- [Enhancement] Supporting quantile and other scale type in aggregation layer (#3920)
+- [Experimental] add _filterData prop to cpu aggregation layer (#3876)
+
+#### deck.gl [v7.3.6] - Nov 11 2019
+
+- Bump loaders.gl dependencies (#3862)
+
+#### deck.gl [v7.3.5] - Nov 8 2019
+
+- Fix texture crash in Safari (#3848)
+- Fix: custom controller events (#3857)
+- Fix attribute allocation bug when using partial update with double precision (#3854)
+- Fix IconLayer autopacking bug (#3847)
+
+#### deck.gl [v7.3.4] - Nov 4 2019
+
+- TileLayer: only invalidate tile.layer when updateTriggerChanged (#3823)
+- HeatmapLayer: fix sublayer id (#3813)
+
+#### deck.gl [v7.3.3] - Oct 15 2019
+
+- TileLayer: Invalidate cache when updateTriggers changed (#3788)
+- Bump luma.gl to 7.3.2
+
+#### deck.gl [v7.3.2] - Oct 3 2019
+
+- GridLayer: enforce point size to workaround ANGLE bug (#3738)
+- Bump luma.gl to 7.3.1
+- HeatmapLayer: set point size to address ANGLE bug (#3732)
+- TileLayer: cache rendered sub layers (#3730)
+- Bump pydeck to 0.1.dev5 (#3715
+
+#### deck.gl [v7.3.1] - Sep 30 2019
+
+- Clamp HeatmapLayer colorDomain on iOS (#3723)
+
+#### deck.gl [v7.3.0] - Sep 30 2019
+
+### deck.gl v7.3 Prereleases
+
+#### deck.gl [v7.3.0-beta.9] - Sep 27 2019
+
+- HeatmapLayer: Add 'colorDomain' prop (#3714)
+- Bump luma to prod version (#3712)
+
+#### deck.gl [v7.3.0-beta.8] - Sep 26 2019
+
+- Allow pydeck user to modify tooltip text (#3690)
+- Bump dependencies (#3706)
+
+#### deck.gl [v7.3.0-beta.7] - Sep 25, 2019
+
+- Always generate 64xyLow attributes for positions (#3696)
+
+#### deck.gl [v7.3.0-beta.6] - Sep 25, 2019
+
+- Fix HeatmapLayer crash in iOS (Safari) (#3681)
+
+#### deck.gl [v7.3.0-beta.5] - Sep 23, 2019
+
+- wrap accessors passed in subLayerProps (#3675)
+- Update S2 library within pydeck (#3678)
+
+#### deck.gl [v7.3.0-beta.4] - Sep 20, 2019
+
+- remove dead code (#3669)
+- Bump version for examples and sub modules (#3670)
+- fix S2Layer script dependency (#3674)
+- Fix bugs in pre-bundled version (#3672)
+
+#### deck.gl [v7.3.0-beta.3] - Sep 20, 2019
+
+- Improve multi-picking performance (#3668)
+- Pass DracoLoader to Tile3DLayer from app (#3635)
+- More picking bug fix (#3667)
+- Fix GPUGridLayer unhandled cellsize (#3535)
+- HeatmpaLayer: update required features for WebGL1 support. (#3656)
+- Clean up transition classes, avoid crash with `duration:0` (#3649)
+- remove transitions that have null settings (#3647)
+- Allow pydeck users to hide tooltip (#3626)
+- Fix multi-picking bug (#3652)
+
+#### deck.gl [v7.3.0-beta.2] - Sep 19, 2019
+
+- Fix GPUSpringTransition (#3627)
+- Implement isTransitioning check for attribute spring-transitions (#3618)
+
+#### deck.gl [v7.3.0-beta.1] - Sep 17, 2019
+
+- Bump dependency versions (#3623)
+- Fix bug that makes undefined key appear in aggregate layer pickingInfo (#3624)
+- Fix pixel ratio calculation, update docs (#3615)
+- Support spring transition in UniformTransitionManager (#3621)
+- Tileset3DLayer API audit (#3620)
+- _enableOffsetModelMatrix to _composeModelMatrix for API audit (#3614)
+- Update jupyter-widget module for new deck.gl/json API (#3584)
+- Add alphaCutoff prop to IconLayer (#3607)
+- Support constants and non instantiate prop in json module (#3606)
+- Update pydeck tooltip style and modularize the Jupyter widget tooltip (#3590)
+- remove module settings hack (#3603)
+- Adopt most recent change from loaders.gl and bump loaders.gl (#3597)
+- Expose loaders.gl endpoints from the core bundle (#3598)
+- Bundle optimization (#3593)
+- add extensions to master bundle (#3592)
+
+#### deck.gl [v7.3.0-alpha.7] - Sep 13, 2019
+
+- ScreenGridLayer: Replace UBO usage with Texture2D for max aggregation value (#3573)
+- Fix Tile3DLayer doc links (#3589)
+- Refactor Tile3DLayer and minimum test (#3578)
+- json: Playground simplifications (#3586)
+- Tests: use polyfilled gl for JSONConverter tests (#3587)
+- 3d tile example (#3582)
+- json: Test and code cleanup (#3585)
+- CSS to Device conversion: Replace custom code with luma.gl utilities methods (#3531)
+- bump luma.gl and loaders.gl
+- Update pydeck setup.py to include standalone require.js template (#3568)
+- Restore tests (#3581)
+- Add default tooltip to pydeck (#3562)
+- json: Simplify `JSONConfiguration` (#3577)
+- Add support for quantile and ordinal scale (#3546)
+- Add "Playground" (aka json-browser) to website (#3561)
+- Revert Python pyppeteer installation (#3575)
+- attribute spring transition (#3530)
+- json: minimap as pure json example (#3563)
+- ocular-dev-tools: 0.0.29 (modernize es6 dists) (#3569)
+- fix vricon tile stop rendering issue (#3570)
+- Provide additional support for Python 2.7 installations (#3565)
+- HeatmapLayer/GPUAggregator: fix WebGL feature checking (#3483)
+- add rendering test for shadow (#3564)
+- spring-based-transitions RFC draft (#3390)
+- Fix/Viewport Transitions FlyTo webpack config (#3556)
+- fix shadow module toggle bug (#3560)
+- json: Update JSON examples (#3558)
+- Generalized JSON converter (#3491)
+- bump math.gl version (#3553)
+- refactor interpolation transition (#3540)
+- Add Tile3DLayer doc (#3508)
+- Update the documentation and development file paths for pydeck (#3548)
+- [#3548 - Part I] Update pydeck README to include release URL and additional usage instructions (#3549)
+- use built-in tooltip API in examples (#3547)
+- Add Tile3DLayer to geo-layers module (#3523)
+- Fix ColumnLayer elevationScale example (#3542)
+- Support a default tooltip (#3529)
+- misc test warning fixes (#3539)
+- Add update trigger tests to generated tests (#3527)
+
+#### deck.gl [v7.3.0-alpha.6] - Sep 6, 2019
+
+- Fix double precision attribute transitions (#3532)
+- Add mybinder URL to pydeck README (#3538)
+- Revert pydeck path changes (#3537)
+- Fix GPUGridLayer crash when used with GridLayer (#3528)
+- Fix typos and broken links in the docs (#3524)
+
+#### deck.gl [v7.3.0-alpha.5] - Sep 5, 2019
+
+- [Feat] Hexagon/Grid, getColorValue, getElevationValue based on updateTriggers (#3473)
+- Integrate ProgramManager (#3504)
+- update website fonts (#3519)
+- produce more meaningful metrics (#3518)
+- Transition refactor (2/2): create one transform per attribute (#3498)
+- Transition system refactor (1/2): use timeline (#3496)
+- Support for live notebook updates and introduce 2-way notebook API communication (#3510)
+- Change dependency path spelling
+- Correct nbextension typo
+
+#### deck.gl [v7.3.0-alpha.4] - Aug 29, 2019
+
+- bump luma.gl to 7.3.0-alpha.5 (#3509)
+- Respect layer opacity in SimpleMeshLayer (#3488)
+- update the component-wrapping-rfc.md (#3507)
+- fix opacity issue in scene graph layer (#3506)
+- disable orbit controller rotation normalization (#3497)
+- Add markdown documentation for the pydeck library (#3423)
+- Add additional setup.py requirements (#3501)
+
+#### deck.gl [v7.3.0-alpha.3] - Aug 28, 2019
+
+- RFC: Component Wrapping System (#3503)
+
+#### deck.gl [v7.3.0-alpha.2] - Aug 28, 2019
+
+- fix dist test (#3502)
+- Disable model matrix for offset by default (#3500)
+- apply model matrix to offset in scene graph layer (#3499)
+- [jupyter-widget] update webpack configs (#3495)
+- Add development installation instructions (#3494)
+- Generic prop transition (#3443)
+- [jupyter-widget] use only one endpoint (#3493)
+- Simplify pydeck widget build (#3462)
+- [MapboxLayer] integrate mapbox-gl's near plane fix (#3490)
+- fix arc layer shaders (#3487)
+- IconLayer: check texture width and height before drawing (#3481)
+- Update deck.gl version to ^7.0.0 in docs (#3485)
+- Attribute: use `type: GL.DOUBLE` for double precision (#3477)
+
+#### deck.gl [v7.3.0-alpha.1] - Aug 21, 2019
+
+- update node requirement to 10.x (#3474)
+- Support double precision in Attribute class (#3468)
+- Relax restrictions for external buffers (#3472)
+- fix firefox invalid date (#3466)
+- Add interaction tests (#3461)
+- Update README.md
+- Add transform and enable options to attribute class (#3448)
+- Improve shadow for mesh layer (#3452)
+- update code sample in mapbox layer docs (#3459)
+- Support 360 rotation in OrbitController (#3454)
+- fix OrbitView bug when orbitAxis: Z (#3453)
+- Composite layer should rerender when state updates (#3434)
+- Fail gracefully in the event of a hexbin projection error (#3424)
+- Add warnings for invalid layer types in JSONConverter (#3444)
+- More unit test for SunLight class (#3442)
+- Use HTMLImageLoader for browser compatibility (#3440)
+- Support expression parsing for JSON API and pydeck (#3397)
+- Clean up gallery icon example (#3433)
+- Bump loaders dependencies in examples (#3430)
+- Bump luma.gl to 7.2.0 (#3429)
+- Website: Lock loaders.gl/las to 1.0.3 (#3428)
+- Website reference ES5 transpiled version of supercluster depend… (#3427)
+
 ## deck.gl v7.2
+
+#### deck.gl [v7.2.4] - Sep 13, 2019
+
+- Bump loaders.gl to latest latest 1.2 prod (#3594)
+- add extensions to master bundle (#3592)
+
+#### deck.gl [v7.2.3] - Aug 16, 2019
+
+- IconLayer: check texture width and height before drawing (#3481)
+- integrate mapbox-gl's near plane fix (#3490)
+
+#### deck.gl [v7.2.2] - Aug 16, 2019
+
+- fix OrbitView bug when orbitAxis: Z (#3453)
+- Fail gracefully in the event of a hexbin projection error (#3424)
+- Improve shadow for mesh layer (#3452)
+
+#### deck.gl [v7.2.1] - Aug 13, 2019
+
+- Use HTMLImageLoader for browser compatibility (#3440)
+
+#### deck.gl [v7.2.0] - Aug 9, 2019
+
+- Bump luma.gl to 7.2.0 (#3429)
+- Website: Lock loaders.gl/las to 1.0.3 (#3428)
+- Website reference ES5 transpiled version of supercluster depend… (#3427)
+- Update links to point to 7.2 branch (#3426)
 
 ### deck.gl v7.2 Prereleases
 
+#### deck.gl [v7.2.0-beta.3] - Aug 8, 2019
+
+- improve Deck minification (#3402)
+- Fix PathLayer/trips demo perf regression (#3410)
+- HeatmapLayer: website testing fixes (#3409)
+- Fix highway safety demo bugs (#3411)
+- ScreenGridLayer: skip aggregation when data is empty (#3412)
+- Add shadow to website home demo (#3413)
+- Fix sunlight with shadows (#3414)
+- Fix website data filter example (#3417)
+- Fix set external buffer (#3419)
+- Upgrade to loaders.gl@1.2.0 (#3420)
+
+
+#### deck.gl [v7.2.0-beta.2] - Aug 6, 2019
+
+- Calc right scale for shadow map (#3393)
+- Display rendering stats in layer browser (#3400)
+
+#### deck.gl [v7.2.0-beta.1] - Aug 6, 2019
+
+- Heatmap layer api audit (#3398)
+- Remove side effects from core module (#3395)
+- HeatmapLayer API audit (#3391)
+- Add shadow effect to LightingEffect class (#3387)
+- HeatmapLayer minor optimizations (#3388)
+- HeatmapLayer: Add tests and whats-new (#3384)
+- [HeatmapLayer] add debounce to zoom updates (#3386)
+- Simplify `layer.updateAttributes` override (#3381)
+- Bump luma.gl to 7.2-alpha.6 (#3383)
+- shadow feature for directional light (#3343)
+- Add : Heatmap Layer (#3379)
+- Rename frustum plane properties (#3378)
+- Fix TileLayer flashing (#3380)
+- make sure deck.gl reexports everything from core and layers (#3374)
+- Normalize bitmap layer color uniforms (#3369)
+- Normalize color attributes (#3365)
+- Deprecation warning for IE (#3360)
+- Improve core module test coverage (#3359)
+
+#### deck.gl [v7.2.0-alpha.4] - July 12, 2019
+
+- Fix missing pickingRadius for onClick handlers (#3321) (#3327)
+- Relax geometry validation in GeoJsonLayer (#3325)
+- Typed array manager (#3318)
+- Add support for streaming (#3312)
+- Support line breaks in text strings (#3322)
+- Support loaders.gl data attributes (#3302)
+- Add support for RGB color format (#3338)
+- Attribute allocation bug fixes (#3342)
+- Fix controller event propagation (#3345)
+
 #### deck.gl [v7.2.0-alpha.3] - July 10, 2019
 
-Add an HTML page writer for pydeck (#3250)
-fce0b28e Fix frustum cull (#3323)
-42fd04ec Formal API for CompositeLayer data/accessor wrapping (#3311)
+- Add an HTML page writer for pydeck (#3250)
+- Fix frustum cull (#3323)
+- Formal API for CompositeLayer data/accessor wrapping (#3311)
 
 #### deck.gl [v7.2.0-alpha.2] - July 3, 2019
 
@@ -113,6 +1171,68 @@ fce0b28e Fix frustum cull (#3323)
 - Fix ArcLayer bug when using non-iterable data with pre-allocated target array (#3170)
 
 ## deck.gl v7.1
+
+#### deck.gl [v7.1.11] - Aug 6 2019
+
+- Remove side effects from core module (#3395)
+
+#### deck.gl [v7.1.10] - July 12 2019
+
+- Fix controller event propagation (#3345)
+
+#### deck.gl [v7.1.9] - July 10 2019
+
+- add NON_INSTANCED_MODEL define (#3333)
+
+#### deck.gl [v7.1.8] - July 10 2019
+
+- Fix missing pickingRadius for onClick handlers (#3321) (#3327)
+- Relax geometry validation in GeoJsonLayer (#3325)
+
+#### deck.gl [v7.1.7] - June 24 2019
+
+- fix missing viewport id (#3275)
+- Prevent publishing jupyter-widget module for now (#3273)
+
+#### deck.gl [v7.1.6] - June 21 2019
+
+- S2Layer bug fix (#3270)
+
+#### deck.gl [v7.1.5] - June 20 2019
+
+- update bundle configs (#3264)
+- json module bug fixes (#3253)
+- Fix fullscreen bug in GoogleMapsOverlay (#3255)
+- Fix missing brace on link in viewport doc
+- [Bug] Fix H3HexagonLayer state update (#3246)
+
+#### deck.gl [v7.1.4] - June 13 2019
+
+- CompositeLayer: add ability to override sublayer updateTriggers (#3234)
+- Add touchAction prop to Deck (#3231)
+
+#### deck.gl [v7.1.3] - June 10 2019
+
+- H3Hexagon: add support for coverage. (#3210)
+- fix react method binding (#3219)
+- Fix unpkg links in layer documentations (#3216)
+
+#### deck.gl [v7.1.2] - June 7 2019
+
+- Fix tree shaking in pre-bundled version (#3214)
+
+#### deck.gl [v7.1.1] - June 6 2019
+
+- Support 3D paths with TripsLayer (#3192)
+- fix path layer vertex shader (#3206)
+- Attribute buffer handling bug fixes (#3207)
+- Add sideEffects field to core package.json (#3202)
+
+#### deck.gl [v7.1.0] - June 5 2019
+
+- Fix ArcLayer bug when using non-iterable data with pre-allocated target array (#3170)
+- Fix BitmapLayer (#3181)
+- GPUGridLayer: make it exclusive for WebGL2 (#3195)
 
 ### deck.gl v7.1 Prereleases
 
@@ -1649,7 +2769,7 @@ haders
 
 #### [4.1.0] - 2017-7-27 Minor deck.gl Release
 
-For details see [What's New](https://github.com/uber/deck.gl/blob/5.0-release/docs/whats-new.md)
+For details see [What's New](https://github.com/visgl/deck.gl/blob/5.0-release/docs/whats-new.md)
 
 
 ### deck.gl v4.1 Beta Releases
@@ -2335,7 +3455,7 @@ For details see [What's New](docs/whats-new.md)
 - Retina display support
 - Performance refactoring
 - Switched the underlying rendering framework to
-  [luma.gl](https://github.com/uber/luma.gl)
+  [luma.gl](https://github.com/visgl/luma.gl)
 - Fixed picking on retina/regular display
 
 ## deck.gl v1

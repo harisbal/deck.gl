@@ -1,6 +1,15 @@
-import React, {PureComponent} from 'react';
+import React from 'react';
 import {render} from 'react-dom';
-import DeckGL, {COORDINATE_SYSTEM, SimpleMeshLayer, OrbitView} from 'deck.gl';
+import DeckGL from '@deck.gl/react';
+import {
+  COORDINATE_SYSTEM,
+  OrbitView,
+  DirectionalLight,
+  LightingEffect,
+  AmbientLight
+} from '@deck.gl/core';
+import {SolidPolygonLayer} from '@deck.gl/layers';
+import {SimpleMeshLayer} from '@deck.gl/mesh-layers';
 
 import {OBJLoader} from '@loaders.gl/obj';
 import {registerLoaders} from '@loaders.gl/core';
@@ -9,7 +18,7 @@ import {registerLoaders} from '@loaders.gl/core';
 registerLoaders([OBJLoader]);
 
 const MESH_URL =
-  'https://raw.githubusercontent.com/uber-common/deck.gl-data/master/examples/mesh/minicooper.obj';
+  'https://raw.githubusercontent.com/visgl/deck.gl-data/master/examples/mesh/minicooper.obj';
 
 const INITIAL_VIEW_STATE = {
   target: [0, 0, 0],
@@ -34,31 +43,62 @@ const SAMPLE_DATA = (([xCount, yCount], spacing) => {
   return data;
 })([10, 10], 120);
 
-class Example extends PureComponent {
-  render() {
-    const layers = [
-      new SimpleMeshLayer({
-        id: 'mini-coopers',
-        data: SAMPLE_DATA,
-        mesh: MESH_URL,
-        coordinateSystem: COORDINATE_SYSTEM.IDENTITY,
-        getPosition: d => d.position,
-        getColor: d => d.color,
-        getOrientation: d => d.orientation
-      })
-    ];
+const ambientLight = new AmbientLight({
+  color: [255, 255, 255],
+  intensity: 1.0
+});
 
-    return (
-      <DeckGL
-        views={new OrbitView()}
-        initialViewState={INITIAL_VIEW_STATE}
-        controller={true}
-        layers={layers}
-      />
-    );
-  }
+const dirLight = new DirectionalLight({
+  color: [255, 255, 255],
+  intensity: 1.0,
+  direction: [-10, -2, -15],
+  _shadow: true
+});
+
+const lightingEffect = new LightingEffect({ambientLight, dirLight});
+
+const background = [
+  [[-1000.0, -1000.0, -40], [1000.0, -1000.0, -40], [1000.0, 1000.0, -40], [-1000.0, 1000.0, -40]]
+];
+
+export default function App() {
+  const layers = [
+    new SimpleMeshLayer({
+      id: 'mini-coopers',
+      data: SAMPLE_DATA,
+      mesh: MESH_URL,
+      coordinateSystem: COORDINATE_SYSTEM.CARTESIAN,
+      getPosition: d => d.position,
+      getColor: d => d.color,
+      getOrientation: d => d.orientation
+    }),
+    // only needed when using shadows - a plane for shadows to drop on
+    new SolidPolygonLayer({
+      id: 'background',
+      data: background,
+      extruded: false,
+      coordinateSystem: COORDINATE_SYSTEM.CARTESIAN,
+      getPolygon: f => f,
+      getFillColor: [0, 0, 0, 0]
+    })
+  ];
+
+  return (
+    <DeckGL
+      views={
+        new OrbitView({
+          near: 0.1,
+          far: 2
+        })
+      }
+      initialViewState={INITIAL_VIEW_STATE}
+      controller={true}
+      layers={layers}
+      effects={[lightingEffect]}
+    />
+  );
 }
 
 export function renderToDOM(container) {
-  render(<Example />, container);
+  render(<App />, container);
 }

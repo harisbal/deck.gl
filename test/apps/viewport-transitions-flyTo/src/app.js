@@ -5,7 +5,6 @@ import DeckGL, {MapController, FlyToInterpolator, TRANSITION_EVENTS} from 'deck.
 
 import ControlPanel from './control-panel';
 
-const token = process.env.MapboxAccessToken; // eslint-disable-line
 const interruptionStyles = [
   {
     title: 'BREAK',
@@ -20,10 +19,6 @@ const interruptionStyles = [
     style: TRANSITION_EVENTS.IGNORE
   }
 ];
-
-if (!token) {
-  throw new Error('Please specify a valid mapbox token');
-}
 
 export default class App extends Component {
   constructor(props) {
@@ -72,8 +67,8 @@ export default class App extends Component {
         zoom: 11,
         pitch: 0,
         bearing: 0,
-        transitionDuration: 8000,
-        transitionInterpolator: new FlyToInterpolator(),
+        transitionDuration: 'auto',
+        transitionInterpolator: new FlyToInterpolator({speed: 2}),
         transitionInterruption: this._interruptionStyle
       }
     });
@@ -98,9 +93,8 @@ export default class App extends Component {
           onViewStateChange={this._onViewStateChange}
         >
           <StaticMap
-            mapStyle="mapbox://styles/mapbox/dark-v9"
+            mapStyle="https://basemaps.cartocdn.com/gl/dark-matter-nolabels-gl-style/style.json"
             dragToRotate={false}
-            mapboxApiAccessToken={token}
           />
         </DeckGL>
 

@@ -5,8 +5,8 @@ precision highp float;
 
 uniform bool hasTexture;
 uniform sampler2D sampler;
-uniform vec4 color;
 uniform bool flatShading;
+uniform float opacity;
 
 in vec2 vTexCoord;
 in vec3 cameraPosition;
@@ -21,14 +21,23 @@ void main(void) {
 
   vec3 normal;
   if (flatShading) {
+
+// NOTE(Tarek): This is necessary because
+// headless.gl reports the extension as
+// available but does not support it in
+// the shader.
+#ifdef DERIVATIVES_AVAILABLE
     normal = normalize(cross(dFdx(position_commonspace.xyz), dFdy(position_commonspace.xyz)));
+#else
+    normal = vec3(0.0, 0.0, 1.0);
+#endif
   } else {
     normal = normals_commonspace;
   }
 
-  vec4 color = hasTexture ? texture(sampler, vTexCoord) : vColor / 255.;
-  vec3 lightColor = lighting_getLightColor(color.rgb * 255., cameraPosition, position_commonspace.xyz, normal);
-  fragColor = vec4(lightColor / 255., color.a);
+  vec4 color = hasTexture ? texture(sampler, vTexCoord) : vColor;
+  vec3 lightColor = lighting_getLightColor(color.rgb, cameraPosition, position_commonspace.xyz, normal);
+  fragColor = vec4(lightColor, color.a * opacity);
 
   DECKGL_FILTER_COLOR(fragColor, geometry);
 }

@@ -1,6 +1,6 @@
 build/
 dist/
-dist.min.js
+**/*.min.js
 node_modules/
 coverage/
 test/**/*-failed.png
@@ -19,7 +19,9 @@ TODO
 mapbox-gl.js
 mapbox-gl-dev.js
 
-*/**/yarn.lock
+examples/**/yarn.lock
+showcases/**/yarn.lock
+test/**/yarn.lock
 yarn-error.log
 package-lock.json
 
@@ -31,4 +33,3 @@ package-lock.json
 *.rar
 *.log
 .exit_code
-*.min.js

@@ -1,3 +1,5 @@
+import {createTexture, destroyTexture} from '../utils/texture';
+
 const TYPE_DEFINITIONS = {
   boolean: {
     validate(value, propType) {
@@ -18,7 +20,10 @@ const TYPE_DEFINITIONS = {
   },
   color: {
     validate(value, propType) {
-      return isArray(value) && (value.length === 3 || value.length === 4);
+      return (
+        (propType.optional && !value) ||
+        (isArray(value) && (value.length === 3 || value.length === 4))
+      );
     },
     equal(value1, value2, propType) {
       return arrayEqual(value1, value2);
@@ -50,6 +55,20 @@ const TYPE_DEFINITIONS = {
     },
     equal(value1, value2, propType) {
       return !propType.compare || value1 === value2;
+    }
+  },
+  data: {
+    transform: (value, propType, component) => {
+      const {dataTransform} = component ? component.props : {};
+      return dataTransform && value ? dataTransform(value) : value;
+    }
+  },
+  image: {
+    transform: (value, propType, component) => {
+      return createTexture(component, value);
+    },
+    release: value => {
+      destroyTexture(value);
     }
   }
 };
@@ -124,9 +143,9 @@ function normalizePropDefinition(name, propDef) {
       // If no type and value this object is likely the value
       return {name, type: 'object', value: propDef};
     }
-    return Object.assign({name, type: getTypeOf(propDef.value)}, propDef);
+    return {name, type: getTypeOf(propDef.value), ...propDef};
   }
-  return Object.assign({name}, TYPE_DEFINITIONS[propDef.type], propDef);
+  return {name, ...TYPE_DEFINITIONS[propDef.type], ...propDef};
 }
 
 function isArray(value) {

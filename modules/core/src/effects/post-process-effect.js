@@ -1,7 +1,6 @@
 import Effect from '../lib/effect';
 import ScreenPass from '../passes/screen-pass';
-/* eslint-disable import/no-extraneous-dependencies */
-import {normalizeShaderModule} from '@luma.gl/shadertools';
+import {normalizeShaderModule} from '@luma.gl/core';
 
 export default class PostProcessEffect extends Effect {
   constructor(module, props = {}) {
@@ -11,28 +10,25 @@ export default class PostProcessEffect extends Effect {
     this.module = module;
   }
 
-  prepare(gl) {
+  postRender(gl, params) {
     if (!this.passes) {
       this.passes = createPasses(gl, this.module, this.id, this.props);
     }
-  }
 
-  render(params) {
-    const {target = null} = params;
-    let switchBuffer = false;
+    const {target} = params;
+    let inputBuffer = params.inputBuffer;
+    let outputBuffer = params.swapBuffer;
+
     for (let index = 0; index < this.passes.length; index++) {
-      const inputBuffer = switchBuffer ? params.outputBuffer : params.inputBuffer;
-      let outputBuffer = switchBuffer ? params.inputBuffer : params.outputBuffer;
       if (target && index === this.passes.length - 1) {
         outputBuffer = target;
       }
       this.passes[index].render({inputBuffer, outputBuffer});
-      switchBuffer = !switchBuffer;
+      const switchBuffer = outputBuffer;
+      outputBuffer = inputBuffer;
+      inputBuffer = switchBuffer;
     }
-    return {
-      inputBuffer: switchBuffer ? params.outputBuffer : params.inputBuffer,
-      outputBuffer: switchBuffer ? params.inputBuffer : params.outputBuffer
-    };
+    return inputBuffer;
   }
 
   cleanup() {
@@ -45,14 +41,14 @@ export default class PostProcessEffect extends Effect {
   }
 }
 
-function createPasses(gl, module, id, moduleProps) {
+function createPasses(gl, module, id, moduleSettings) {
   if (module.filter || module.sampler) {
     const fs = getFragmentShaderForRenderPass(module);
     const pass = new ScreenPass(gl, {
       id,
       module,
       fs,
-      moduleProps
+      moduleSettings
     });
     return [pass];
   }
@@ -66,7 +62,7 @@ function createPasses(gl, module, id, moduleProps) {
       id: idn,
       module,
       fs,
-      moduleProps
+      moduleSettings
     });
   });
 }

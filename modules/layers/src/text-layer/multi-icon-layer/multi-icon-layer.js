@@ -18,35 +18,27 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-import {createIterable} from '@deck.gl/core';
+import GL from '@luma.gl/constants';
+import {log} from '@deck.gl/core';
 import IconLayer from '../../icon-layer/icon-layer';
 
-import vs from './multi-icon-layer-vertex.glsl';
 import fs from './multi-icon-layer-fragment.glsl';
 
 // TODO expose as layer properties
-const DEFAULT_GAMMA = 0.2;
 const DEFAULT_BUFFER = 192.0 / 256;
+const EMPTY_ARRAY = [];
 
 const defaultProps = {
-  getShiftInQueue: {type: 'accessor', value: x => x.shift || 0},
-  getLengthOfQueue: {type: 'accessor', value: x => x.len || 1},
-  // 1: left, 0: middle, -1: right
-  getAnchorX: {type: 'accessor', value: x => x.anchorX || 0},
-  // 1: top, 0: center, -1: bottom
-  getAnchorY: {type: 'accessor', value: x => x.anchorY || 0},
-  getPixelOffset: {type: 'accessor', value: [0, 0]},
-
-  // object with the same pickingIndex will be picked when any one of them is being picked
-  getPickingIndex: {type: 'accessor', value: x => x.objectIndex}
+  getIconOffsets: {type: 'accessor', value: x => x.offsets},
+  alphaCutoff: 0.001,
+  smoothing: 0.1,
+  outlineWidth: 0,
+  outlineColor: {type: 'color', value: [0, 0, 0, 255]}
 };
 
 export default class MultiIconLayer extends IconLayer {
   getShaders() {
-    return Object.assign({}, super.getShaders(), {
-      vs,
-      fs
-    });
+    return {...super.getShaders(), fs};
   }
 
   initializeState() {
@@ -54,79 +46,63 @@ export default class MultiIconLayer extends IconLayer {
 
     const attributeManager = this.getAttributeManager();
     attributeManager.addInstanced({
-      instancePixelOffset: {
+      instanceOffsets: {
         size: 2,
-        transition: true,
-        accessor: 'getPixelOffset'
+        accessor: 'getIconOffsets'
+      },
+      instancePickingColors: {
+        type: GL.UNSIGNED_BYTE,
+        size: 3,
+        accessor: (object, {index, target: value}) => this.encodePickingColor(index, value)
       }
     });
   }
 
-  updateState(updateParams) {
-    super.updateState(updateParams);
-    const {changeFlags} = updateParams;
+  updateState(params) {
+    super.updateState(params);
+    const {props, oldProps} = params;
+    let {outlineColor} = props;
 
-    if (
-      changeFlags.updateTriggersChanged &&
-      (changeFlags.updateTriggersChanged.getAnchorX || changeFlags.updateTriggersChanged.getAnchorY)
-    ) {
-      this.getAttributeManager().invalidate('instanceOffsets');
+    if (outlineColor !== oldProps.outlineColor) {
+      outlineColor = outlineColor.map(x => x / 255);
+      outlineColor[3] = Number.isFinite(outlineColor[3]) ? outlineColor[3] : 1;
+
+      this.setState({
+        outlineColor
+      });
+    }
+    if (!props.sdf && props.outlineWidth) {
+      log.warn(`${this.id}: fontSettings.sdf is required to render outline`)();
     }
   }
 
-  draw({uniforms}) {
-    const {sdf} = this.props;
-    super.draw({
-      uniforms: Object.assign({}, uniforms, {
-        // Refer the following doc about gamma and buffer
-        // https://blog.mapbox.com/drawing-text-with-signed-distance-fields-in-mapbox-gl-b0933af6f817
-        buffer: DEFAULT_BUFFER,
-        gamma: DEFAULT_GAMMA,
-        sdf: Boolean(sdf)
-      })
-    });
+  draw(params) {
+    const {sdf, smoothing, outlineWidth} = this.props;
+    const {outlineColor} = this.state;
+
+    params.uniforms = {
+      ...params.uniforms,
+      // Refer the following doc about gamma and buffer
+      // https://blog.mapbox.com/drawing-text-with-signed-distance-fields-in-mapbox-gl-b0933af6f817
+      buffer: DEFAULT_BUFFER,
+      outlineBuffer: outlineWidth ? Math.max(smoothing, DEFAULT_BUFFER * (1 - outlineWidth)) : -1,
+      gamma: smoothing,
+      sdf: Boolean(sdf),
+      outlineColor
+    };
+    super.draw(params);
   }
 
-  calculateInstanceOffsets(attribute, {startRow, endRow}) {
-    const {
-      data,
-      iconMapping,
-      getIcon,
-      getAnchorX,
-      getAnchorY,
-      getLengthOfQueue,
-      getShiftInQueue
-    } = this.props;
-    const {value, size} = attribute;
-    let i = startRow * size;
-    const {iterable} = createIterable(data, startRow, endRow);
-
-    for (const object of iterable) {
-      const icon = getIcon(object);
-      const rect = iconMapping[icon] || {};
-      const len = getLengthOfQueue(object);
-      const shiftX = getShiftInQueue(object);
-
-      value[i++] = ((getAnchorX(object) - 1) * len) / 2 + rect.width / 2 + shiftX || 0;
-      value[i++] = (rect.height / 2) * getAnchorY(object) || 0;
-    }
+  getInstanceOffset(icons) {
+    return icons ? Array.from(icons).map(icon => super.getInstanceOffset(icon)) : EMPTY_ARRAY;
   }
 
-  calculateInstancePickingColors(attribute, {startRow, endRow}) {
-    const {data, getPickingIndex} = this.props;
-    const {value, size} = attribute;
-    let i = startRow * size;
-    const pickingColor = [];
-    const {iterable} = createIterable(data, startRow, endRow);
+  getInstanceColorMode(icons) {
+    return 1; // mask
+  }
 
-    for (const point of iterable) {
-      const index = getPickingIndex(point);
-      this.encodePickingColor(index, pickingColor);
-
-      value[i++] = pickingColor[0];
-      value[i++] = pickingColor[1];
-      value[i++] = pickingColor[2];
-    }
+  getInstanceIconFrame(icons) {
+    return icons ? Array.from(icons).map(icon => super.getInstanceIconFrame(icon)) : EMPTY_ARRAY;
   }
 }
 

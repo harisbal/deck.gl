@@ -3,12 +3,10 @@ import {h3SetToMultiPolygon} from 'h3-js';
 import {CompositeLayer, createIterable} from '@deck.gl/core';
 import {PolygonLayer} from '@deck.gl/layers';
 
-const defaultProps = Object.assign(
-  {
-    getHexagons: {type: 'accessor', value: d => d.hexagons}
-  },
-  PolygonLayer.defaultProps
-);
+const defaultProps = {
+  ...PolygonLayer.defaultProps,
+  getHexagons: {type: 'accessor', value: d => d.hexagons}
+};
 
 export default class H3ClusterLayer extends CompositeLayer {
   updateState({props, oldProps, changeFlags}) {
@@ -54,6 +52,7 @@ export default class H3ClusterLayer extends CompositeLayer {
       getLineWidth,
       getLineDashArray,
       getElevation,
+      transitions,
       updateTriggers
     } = this.props;
 
@@ -76,6 +75,7 @@ export default class H3ClusterLayer extends CompositeLayer {
         lineDashJustified,
 
         material,
+        transitions,
 
         getFillColor: this.getSubLayerAccessor(getFillColor),
         getLineColor: this.getSubLayerAccessor(getLineColor),

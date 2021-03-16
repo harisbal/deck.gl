@@ -18,11 +18,10 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-import {Layer, createIterable, fp64LowPart} from '@deck.gl/core';
+import {Layer, project32, gouraudLighting, picking} from '@deck.gl/core';
 import GL from '@luma.gl/constants';
-import {Model, PhongMaterial} from '@luma.gl/core';
+import {Model} from '@luma.gl/core';
 import ColumnGeometry from './column-geometry';
-const defaultMaterial = new PhongMaterial();
 
 import vs from './column-layer-vertex.glsl';
 import fs from './column-layer-fragment.glsl';
@@ -53,13 +52,13 @@ const defaultProps = {
   getLineColor: {type: 'accessor', value: DEFAULT_COLOR},
   getLineWidth: {type: 'accessor', value: 1},
   getElevation: {type: 'accessor', value: 1000},
-  material: defaultMaterial,
+  material: true,
   getColor: {deprecatedFor: ['getFillColor', 'getLineColor']}
 };
 
 export default class ColumnLayer extends Layer {
   getShaders() {
-    return super.getShaders({vs, fs, modules: ['project32', 'gouraud-lighting', 'picking']});
+    return super.getShaders({vs, fs, modules: [project32, gouraudLighting, picking]});
   }
 
   /**
@@ -72,6 +71,8 @@ export default class ColumnLayer extends Layer {
     attributeManager.addInstanced({
       instancePositions: {
         size: 3,
+        type: GL.DOUBLE,
+        fp64: this.use64bitPositions(),
         transition: true,
         accessor: 'getPosition'
       },
@@ -80,21 +81,18 @@ export default class ColumnLayer extends Layer {
         transition: true,
         accessor: 'getElevation'
       },
-      instancePositions64xyLow: {
-        size: 2,
-        accessor: 'getPosition',
-        update: this.calculateInstancePositions64xyLow
-      },
       instanceFillColors: {
-        size: 4,
+        size: this.props.colorFormat.length,
         type: GL.UNSIGNED_BYTE,
+        normalized: true,
         transition: true,
         accessor: 'getFillColor',
         defaultValue: DEFAULT_COLOR
       },
       instanceLineColors: {
-        size: 4,
+        size: this.props.colorFormat.length,
         type: GL.UNSIGNED_BYTE,
+        normalized: true,
         transition: true,
         accessor: 'getLineColor',
         defaultValue: DEFAULT_COLOR
@@ -115,26 +113,25 @@ export default class ColumnLayer extends Layer {
 
     if (regenerateModels) {
       const {gl} = this.context;
-      if (this.state.model) {
-        this.state.model.delete();
-      }
-      this.setState({model: this._getModel(gl)});
+      this.state.model?.delete();
+      this.state.model = this._getModel(gl);
       this.getAttributeManager().invalidateAll();
     }
 
     if (
       regenerateModels ||
       props.diskResolution !== oldProps.diskResolution ||
-      props.vertices !== oldProps.vertices
+      props.vertices !== oldProps.vertices ||
+      (props.extruded || props.stroked) !== (oldProps.extruded || oldProps.stroked)
     ) {
       this._updateGeometry(props);
     }
   }
 
-  getGeometry(diskResolution, vertices) {
+  getGeometry(diskResolution, vertices, hasThinkness) {
     const geometry = new ColumnGeometry({
       radius: 1,
-      height: 2,
+      height: hasThinkness ? 2 : 0,
       vertices,
       nradial: diskResolution
     });
@@ -157,18 +154,15 @@ export default class ColumnLayer extends Layer {
   }
 
   _getModel(gl) {
-    return new Model(
-      gl,
-      Object.assign({}, this.getShaders(), {
-        id: this.props.id,
-        isInstanced: true,
-        shaderCache: this.context.shaderCache
-      })
-    );
+    return new Model(gl, {
+      ...this.getShaders(),
+      id: this.props.id,
+      isInstanced: true
+    });
   }
 
-  _updateGeometry({diskResolution, vertices}) {
-    const geometry = this.getGeometry(diskResolution, vertices);
+  _updateGeometry({diskResolution, vertices, extruded, stroked}) {
+    const geometry = this.getGeometry(diskResolution, vertices, extruded || stroked);
 
     this.setState({
       fillVertexCount: geometry.attributes.POSITION.value.length / 3,
@@ -198,23 +192,20 @@ export default class ColumnLayer extends Layer {
     } = this.props;
     const {model, fillVertexCount, wireframeVertexCount, edgeDistance} = this.state;
 
-    const widthMultiplier =
-      lineWidthUnits === 'pixels' ? viewport.distanceScales.metersPerPixel[2] : 1;
+    const widthMultiplier = lineWidthUnits === 'pixels' ? viewport.metersPerPixel : 1;
 
-    model.setUniforms(
-      Object.assign({}, uniforms, {
-        radius,
-        angle: (angle / 180) * Math.PI,
-        offset,
-        extruded,
-        coverage,
-        elevationScale,
-        edgeDistance,
-        widthScale: lineWidthScale * widthMultiplier,
-        widthMinPixels: lineWidthMinPixels,
-        widthMaxPixels: lineWidthMaxPixels
-      })
-    );
+    model.setUniforms(uniforms).setUniforms({
+      radius,
+      angle: (angle / 180) * Math.PI,
+      offset,
+      extruded,
+      coverage,
+      elevationScale,
+      edgeDistance,
+      widthScale: lineWidthScale * widthMultiplier,
+      widthMinPixels: lineWidthMinPixels,
+      widthMaxPixels: lineWidthMaxPixels
+    });
 
     // When drawing 3d: draw wireframe first so it doesn't get occluded by depth test
     if (extruded && wireframe) {
@@ -243,27 +234,6 @@ export default class ColumnLayer extends Layer {
         .setDrawMode(GL.TRIANGLE_STRIP)
         .setUniforms({isStroke: true})
         .draw();
-    }
-  }
-
-  calculateInstancePositions64xyLow(attribute, {startRow, endRow}) {
-    const isFP64 = this.use64bitPositions();
-    attribute.constant = !isFP64;
-
-    if (!isFP64) {
-      attribute.value = new Float32Array(2);
-      return;
-    }
-
-    const {data, getPosition} = this.props;
-    const {value, size} = attribute;
-    let i = startRow * size;
-    const {iterable, objectInfo} = createIterable(data, startRow, endRow);
-    for (const object of iterable) {
-      objectInfo.index++;
-      const position = getPosition(object, objectInfo);
-      value[i++] = fp64LowPart(position[0]);
-      value[i++] = fp64LowPart(position[1]);
     }
   }
 }

@@ -3,16 +3,16 @@ import Controller from './controller';
 import ViewState from './view-state';
 import LinearInterpolator from '../transitions/linear-interpolator';
 import {TRANSITION_EVENTS} from './transition-manager';
-
-const MOVEMENT_SPEED = 50; // per keyboard click
+import {mod} from '../utils/math-utils';
 
 const DEFAULT_STATE = {
   orbitAxis: 'Z',
   rotationX: 0,
   rotationOrbit: 0,
-  fovy: 50,
   zoom: 0,
   target: [0, 0, 0],
+  minRotationX: -90,
+  maxRotationX: 90,
   minZoom: -Infinity,
   maxZoom: Infinity
 };
@@ -30,7 +30,7 @@ const zoom2Scale = zoom => Math.pow(2, zoom);
 
 export class OrbitState extends ViewState {
   constructor({
-    ViewportType,
+    makeViewport,
 
     /* Viewport arguments */
     width, // Width of viewport
@@ -40,9 +40,10 @@ export class OrbitState extends ViewState {
     rotationOrbit = DEFAULT_STATE.rotationOrbit, // Rotation around orbit axis
     target = DEFAULT_STATE.target,
     zoom = DEFAULT_STATE.zoom,
-    fovy = DEFAULT_STATE.fovy,
 
     /* Viewport constraints */
+    minRotationX = DEFAULT_STATE.minRotationX,
+    maxRotationX = DEFAULT_STATE.maxRotationX,
     minZoom = DEFAULT_STATE.minZoom,
     maxZoom = DEFAULT_STATE.maxZoom,
 
@@ -51,6 +52,7 @@ export class OrbitState extends ViewState {
     startPanPosition,
     startTarget,
     // Model state when the rotate operation first started
+    startRotatePos,
     startRotationX,
     startRotationOrbit,
     // Model state when the zoom operation first started
@@ -64,32 +66,24 @@ export class OrbitState extends ViewState {
       rotationX,
       rotationOrbit,
       target,
-      fovy,
       zoom,
+      minRotationX,
+      maxRotationX,
       minZoom,
       maxZoom
     });
 
-    this._interactiveState = {
+    this._state = {
       startPanPosition,
       startTarget,
+      startRotatePos,
       startRotationX,
       startRotationOrbit,
       startZoomPosition,
       startZoom
     };
 
-    this.ViewportType = ViewportType;
-  }
-
-  /* Public API */
-
-  getViewportProps() {
-    return this._viewportProps;
-  }
-
-  getInteractiveState() {
-    return this._interactiveState;
+    this.makeViewport = makeViewport;
   }
 
   /**
@@ -110,7 +104,7 @@ export class OrbitState extends ViewState {
    * @param {[Number, Number]} pos - position on screen where the pointer is
    */
   pan({pos, startPos}) {
-    const {startPanPosition, startTarget} = this._interactiveState;
+    const {startPanPosition, startTarget} = this._state;
     const delta = new Vector2(pos).subtract(startPanPosition);
 
     return this._getUpdatedState({
@@ -135,6 +129,7 @@ export class OrbitState extends ViewState {
    */
   rotateStart({pos}) {
     return this._getUpdatedState({
+      startRotatePos: pos,
       startRotationX: this._viewportProps.rotationX,
       startRotationOrbit: this._viewportProps.rotationOrbit
     });
@@ -144,21 +139,40 @@ export class OrbitState extends ViewState {
    * Rotate
    * @param {[Number, Number]} pos - position on screen where the pointer is
    */
-  rotate({deltaScaleX, deltaScaleY}) {
-    const {startRotationX, startRotationOrbit} = this._interactiveState;
+  rotate({pos, deltaAngleX = 0, deltaAngleY = 0}) {
+    const {startRotatePos, startRotationX, startRotationOrbit} = this._state;
+    const {width, height} = this._viewportProps;
 
-    if (!Number.isFinite(startRotationX) || !Number.isFinite(startRotationOrbit)) {
+    if (
+      !startRotatePos ||
+      !Number.isFinite(startRotationX) ||
+      !Number.isFinite(startRotationOrbit)
+    ) {
       return this;
     }
 
-    const newRotationX = clamp(startRotationX + deltaScaleY * 180, -89.999, 89.999);
-    const newRotationOrbit = (startRotationOrbit + deltaScaleX * 180) % 360;
+    let newRotation;
+    if (pos) {
+      let deltaScaleX = (pos[0] - startRotatePos[0]) / width;
+      const deltaScaleY = (pos[1] - startRotatePos[1]) / height;
 
-    return this._getUpdatedState({
-      rotationX: newRotationX,
-      rotationOrbit: newRotationOrbit,
-      isRotating: true
-    });
+      if (startRotationX < -90 || startRotationX > 90) {
+        // When looking at the "back" side of the scene, invert horizontal drag
+        // so that the camera movement follows user input
+        deltaScaleX *= -1;
+      }
+      newRotation = {
+        rotationX: startRotationX + deltaScaleY * 180,
+        rotationOrbit: startRotationOrbit + deltaScaleX * 180
+      };
+    } else {
+      newRotation = {
+        rotationX: startRotationX + deltaAngleY,
+        rotationOrbit: startRotationOrbit + deltaAngleX
+      };
+    }
+
+    return this._getUpdatedState(newRotation);
   }
 
   /**
@@ -172,9 +186,16 @@ export class OrbitState extends ViewState {
     });
   }
 
-  // default implementation of shortest path between two view states
+  // shortest path between two view states
   shortestPathFrom(viewState) {
-    const props = Object.assign({}, this._viewportProps);
+    const fromProps = viewState.getViewportProps();
+    const props = {...this._viewportProps};
+    const {rotationOrbit} = props;
+
+    if (Math.abs(rotationOrbit - fromProps.rotationOrbit) > 180) {
+      props.rotationOrbit = rotationOrbit < 0 ? rotationOrbit + 360 : rotationOrbit - 360;
+    }
+
     return props;
   }
 
@@ -200,7 +221,7 @@ export class OrbitState extends ViewState {
    */
   zoom({pos, startPos, scale}) {
     const {zoom, width, height, target} = this._viewportProps;
-    let {startZoom, startZoomPosition, startTarget} = this._interactiveState;
+    let {startZoom, startZoomPosition, startTarget} = this._state;
     if (!Number.isFinite(startZoom)) {
       // We have two modes of zoom:
       // scroll zoom that are discrete events (transform from the current zoom level),
@@ -238,67 +259,67 @@ export class OrbitState extends ViewState {
     });
   }
 
-  zoomIn() {
+  zoomIn(speed = 2) {
     return this._getUpdatedState({
-      zoom: this._calculateNewZoom({scale: 2})
+      zoom: this._calculateNewZoom({scale: speed})
     });
   }
 
-  zoomOut() {
+  zoomOut(speed = 2) {
     return this._getUpdatedState({
-      zoom: this._calculateNewZoom({scale: 0.5})
+      zoom: this._calculateNewZoom({scale: 1 / speed})
     });
   }
 
-  moveLeft() {
-    const pixelOffset = [-MOVEMENT_SPEED, 0];
+  moveLeft(speed = 50) {
+    const pixelOffset = [-speed, 0];
     return this._getUpdatedState({
       target: this._calculateNewTarget({pixelOffset})
     });
   }
 
-  moveRight() {
-    const pixelOffset = [MOVEMENT_SPEED, 0];
+  moveRight(speed = 50) {
+    const pixelOffset = [speed, 0];
     return this._getUpdatedState({
       target: this._calculateNewTarget({pixelOffset})
     });
   }
 
-  moveUp() {
-    const pixelOffset = [0, -MOVEMENT_SPEED];
+  moveUp(speed = 50) {
+    const pixelOffset = [0, -speed];
     return this._getUpdatedState({
       target: this._calculateNewTarget({pixelOffset})
     });
   }
 
-  moveDown() {
-    const pixelOffset = [0, MOVEMENT_SPEED];
+  moveDown(speed = 50) {
+    const pixelOffset = [0, speed];
     return this._getUpdatedState({
       target: this._calculateNewTarget({pixelOffset})
     });
   }
 
-  rotateLeft() {
+  rotateLeft(speed = 15) {
     return this._getUpdatedState({
-      rotationOrbit: this._viewportProps.rotationOrbit - 15
+      rotationOrbit: this._viewportProps.rotationOrbit - speed
     });
   }
 
-  rotateRight() {
+  rotateRight(speed = 15) {
     return this._getUpdatedState({
-      rotationOrbit: this._viewportProps.rotationOrbit + 15
+      rotationOrbit: this._viewportProps.rotationOrbit + speed
     });
   }
 
-  rotateUp() {
+  rotateUp(speed = 10) {
     return this._getUpdatedState({
-      rotationX: this._viewportProps.rotationX - 10
+      rotationX: this._viewportProps.rotationX - speed
     });
   }
 
-  rotateDown() {
+  rotateDown(speed = 10) {
     return this._getUpdatedState({
-      rotationX: this._viewportProps.rotationX + 10
+      rotationX: this._viewportProps.rotationX + speed
     });
   }
 
@@ -315,29 +336,33 @@ export class OrbitState extends ViewState {
   }
 
   _calculateNewTarget({startTarget, zoom, pixelOffset}) {
-    const viewportProps = Object.assign({}, this._viewportProps);
+    const viewportProps = {...this._viewportProps};
     if (Number.isFinite(zoom)) {
       viewportProps.zoom = zoom;
     }
     if (startTarget) {
       viewportProps.target = startTarget;
     }
-    const viewport = new this.ViewportType(viewportProps);
+    const viewport = this.makeViewport(viewportProps);
     const center = viewport.project(viewportProps.target);
     return viewport.unproject([center[0] - pixelOffset[0], center[1] - pixelOffset[1], center[2]]);
   }
 
   _getUpdatedState(newProps) {
     // Update _viewportProps
-    return new OrbitState(Object.assign({}, this._viewportProps, this._interactiveState, newProps));
+    return new OrbitState({...this._viewportProps, ...this._state, ...newProps});
   }
 
   // Apply any constraints (mathematical or defined by _viewportProps) to map state
   _applyConstraints(props) {
     // Ensure zoom is within specified range
-    const {maxZoom, minZoom, zoom} = props;
-    props.zoom = zoom > maxZoom ? maxZoom : zoom;
-    props.zoom = zoom < minZoom ? minZoom : zoom;
+    const {maxZoom, minZoom, zoom, maxRotationX, minRotationX, rotationOrbit} = props;
+
+    props.zoom = clamp(zoom, minZoom, maxZoom);
+    props.rotationX = clamp(props.rotationX, minRotationX, maxRotationX);
+    if (rotationOrbit < -180 || rotationOrbit > 180) {
+      props.rotationOrbit = mod(rotationOrbit + 180, 360) - 180;
+    }
 
     return props;
   }

@@ -53,7 +53,7 @@ function getHexagonCentroid(getHexagon, object, objectInfo) {
   return [lng, lat];
 }
 
-function h3ToPolygon(hexId, coverage = 1) {
+function h3ToPolygon(hexId, coverage = 1, flatten) {
   const vertices = h3ToGeoBoundary(hexId, true);
 
   if (coverage !== 1) {
@@ -64,6 +64,16 @@ function h3ToPolygon(hexId, coverage = 1) {
     normalizeLongitudes(vertices);
   }
 
+  if (flatten) {
+    const positions = new Float64Array(vertices.length * 2);
+    let i = 0;
+    for (const pt of vertices) {
+      positions[i++] = pt[0];
+      positions[i++] = pt[1];
+    }
+    return positions;
+  }
+
   return vertices;
 }
 
@@ -72,20 +82,24 @@ function mergeTriggers(getHexagon, coverage) {
   if (getHexagon === undefined || getHexagon === null) {
     trigger = coverage;
   } else if (typeof getHexagon === 'object') {
-    trigger = Object.assign({}, getHexagon, {coverage});
+    trigger = {...getHexagon, coverage};
   } else {
     trigger = {getHexagon, coverage};
   }
   return trigger;
 }
 
-const defaultProps = Object.assign({}, PolygonLayer.defaultProps, {
+const defaultProps = {
+  ...PolygonLayer.defaultProps,
   highPrecision: false,
   coverage: {type: 'number', min: 0, max: 1, value: 1},
+  centerHexagon: null,
   getHexagon: {type: 'accessor', value: x => x.hexagon},
-  extruded: true,
-  getColor: null
-});
+  extruded: true
+};
+
+// not supported
+delete defaultProps.getLineDashArray;
 
 /**
  * A subclass of HexagonLayer that uses H3 hexagonIds in data objects
@@ -112,12 +126,18 @@ export default class H3HexagonLayer extends CompositeLayer {
     ) {
       let resolution = -1;
       let hasPentagon = false;
+      let hasMultipleRes = false;
       const {iterable, objectInfo} = createIterable(props.data);
       for (const object of iterable) {
         objectInfo.index++;
         const hexId = props.getHexagon(object, objectInfo);
         // Take the resolution of the first hex
-        resolution = resolution < 0 ? h3GetResolution(hexId) : resolution;
+        const hexResolution = h3GetResolution(hexId);
+        if (resolution < 0) resolution = hexResolution;
+        else if (resolution !== hexResolution) {
+          hasMultipleRes = true;
+          break;
+        }
         if (h3IsPentagon(hexId)) {
           hasPentagon = true;
           break;
@@ -126,6 +146,7 @@ export default class H3HexagonLayer extends CompositeLayer {
       this.setState({
         resolution,
         edgeLengthKM: resolution >= 0 ? edgeLength(resolution, UNITS.km) : 0,
+        hasMultipleRes,
         hasPentagon
       });
     }
@@ -134,8 +155,15 @@ export default class H3HexagonLayer extends CompositeLayer {
   }
 
   _shouldUseHighPrecision() {
-    const {resolution, hasPentagon} = this.state;
-    return this.props.highPrecision || hasPentagon || (resolution >= 0 && resolution <= 5);
+    const {resolution, hasPentagon, hasMultipleRes} = this.state;
+    const {viewport} = this.context;
+    return (
+      this.props.highPrecision ||
+      viewport.resolution ||
+      hasMultipleRes ||
+      hasPentagon ||
+      (resolution >= 0 && resolution <= 5)
+    );
   }
 
   _updateVertices(viewport) {
@@ -146,15 +174,21 @@ export default class H3HexagonLayer extends CompositeLayer {
     if (resolution < 0) {
       return;
     }
-    const hex = geoToH3(viewport.latitude, viewport.longitude, resolution);
-    if (
-      centerHex === hex ||
-      (centerHex && h3Distance(centerHex, hex) * edgeLengthKM < UPDATE_THRESHOLD_KM)
-    ) {
+    const hex =
+      this.props.centerHexagon || geoToH3(viewport.latitude, viewport.longitude, resolution);
+    if (centerHex === hex) {
       return;
     }
+    if (centerHex) {
+      const distance = h3Distance(centerHex, hex);
+      // h3Distance returns a negative number if the distance could not be computed
+      // due to the two indexes very far apart or on opposite sides of a pentagon.
+      if (distance >= 0 && distance * edgeLengthKM < UPDATE_THRESHOLD_KM) {
+        return;
+      }
+    }
 
-    const {pixelsPerMeter} = viewport.distanceScales;
+    const {unitsPerMeter} = viewport.distanceScales;
 
     let vertices = h3ToPolygon(hex);
     const [centerLat, centerLng] = h3ToGeo(hex);
@@ -162,9 +196,10 @@ export default class H3HexagonLayer extends CompositeLayer {
     const [centerX, centerY] = viewport.projectFlat([centerLng, centerLat]);
     vertices = vertices.map(p => {
       const worldPosition = viewport.projectFlat(p);
-      worldPosition[0] = (worldPosition[0] - centerX) / pixelsPerMeter[0];
-      worldPosition[1] = (worldPosition[1] - centerY) / pixelsPerMeter[1];
-      return worldPosition;
+      return [
+        (worldPosition[0] - centerX) / unitsPerMeter[0],
+        (worldPosition[1] - centerY) / unitsPerMeter[1]
+      ];
     });
 
     this.setState({centerHex: hex, vertices});
@@ -187,12 +222,11 @@ export default class H3HexagonLayer extends CompositeLayer {
       lineWidthScale,
       lineWidthMinPixels,
       lineWidthMaxPixels,
-      // TODO - Deprecate getColor Prop in v8.0
-      getColor,
       getFillColor,
       getElevation,
       getLineColor,
       getLineWidth,
+      transitions,
       updateTriggers
     } = this.props;
 
@@ -209,11 +243,12 @@ export default class H3HexagonLayer extends CompositeLayer {
       lineWidthMaxPixels,
       material,
       getElevation,
-      getFillColor: getColor || getFillColor,
+      getFillColor,
       getLineColor,
       getLineWidth,
+      transitions,
       updateTriggers: {
-        getFillColor: updateTriggers.getColor || updateTriggers.getFillColor,
+        getFillColor: updateTriggers.getFillColor,
         getElevation: updateTriggers.getElevation,
         getLineColor: updateTriggers.getLineColor,
         getLineWidth: updateTriggers.getLineWidth
@@ -237,9 +272,12 @@ export default class H3HexagonLayer extends CompositeLayer {
       }),
       {
         data,
+        _normalize: false,
+        _windingOrder: 'CCW',
+        positionFormat: 'XY',
         getPolygon: (object, objectInfo) => {
           const hexagonId = getHexagon(object, objectInfo);
-          return h3ToPolygon(hexagonId, coverage);
+          return h3ToPolygon(hexagonId, coverage, true);
         }
       }
     );

@@ -17,7 +17,7 @@
 // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
-import {Layer, createIterable, fp64LowPart} from '@deck.gl/core';
+import {Layer, project32, picking, log} from '@deck.gl/core';
 import GL from '@luma.gl/constants';
 import {Model, Geometry} from '@luma.gl/core';
 
@@ -50,29 +50,36 @@ const DEFAULT_COLOR = [0, 0, 0, 255];
  * @param {func} props.getAngle - returns rotating angle (in degree) of the icon.
  */
 const defaultProps = {
-  iconAtlas: {type: 'object', value: null, async: true},
+  iconAtlas: {type: 'image', value: null, async: true},
   iconMapping: {type: 'object', value: {}, async: true},
   sizeScale: {type: 'number', value: 1, min: 0},
   billboard: true,
   sizeUnits: 'pixels',
   sizeMinPixels: {type: 'number', min: 0, value: 0}, //  min point radius in pixels
   sizeMaxPixels: {type: 'number', min: 0, value: Number.MAX_SAFE_INTEGER}, // max point radius in pixels
+  alphaCutoff: {type: 'number', value: 0.05, min: 0, max: 1},
 
   getPosition: {type: 'accessor', value: x => x.position},
   getIcon: {type: 'accessor', value: x => x.icon},
   getColor: {type: 'accessor', value: DEFAULT_COLOR},
   getSize: {type: 'accessor', value: 1},
-  getAngle: {type: 'accessor', value: 0}
+  getAngle: {type: 'accessor', value: 0},
+  getPixelOffset: {type: 'accessor', value: [0, 0]},
+
+  onIconError: {type: 'function', value: null, compare: false, optional: true}
 };
 
 export default class IconLayer extends Layer {
   getShaders() {
-    return super.getShaders({vs, fs, modules: ['project32', 'picking']});
+    return super.getShaders({vs, fs, modules: [project32, picking]});
   }
 
   initializeState() {
     this.state = {
-      iconManager: new IconManager(this.context.gl, {onUpdate: () => this._onUpdate()})
+      iconManager: new IconManager(this.context.gl, {
+        onUpdate: this._onUpdate.bind(this),
+        onError: this._onError.bind(this)
+      })
     };
 
     const attributeManager = this.getAttributeManager();
@@ -80,13 +87,10 @@ export default class IconLayer extends Layer {
     attributeManager.addInstanced({
       instancePositions: {
         size: 3,
+        type: GL.DOUBLE,
+        fp64: this.use64bitPositions(),
         transition: true,
         accessor: 'getPosition'
-      },
-      instancePositions64xyLow: {
-        size: 2,
-        accessor: 'getPosition',
-        update: this.calculateInstancePositions64xyLow
       },
       instanceSizes: {
         size: 1,
@@ -94,17 +98,18 @@ export default class IconLayer extends Layer {
         accessor: 'getSize',
         defaultValue: 1
       },
-      instanceOffsets: {size: 2, accessor: 'getIcon', update: this.calculateInstanceOffsets},
-      instanceIconFrames: {size: 4, accessor: 'getIcon', update: this.calculateInstanceIconFrames},
+      instanceOffsets: {size: 2, accessor: 'getIcon', transform: this.getInstanceOffset},
+      instanceIconFrames: {size: 4, accessor: 'getIcon', transform: this.getInstanceIconFrame},
       instanceColorModes: {
         size: 1,
         type: GL.UNSIGNED_BYTE,
         accessor: 'getIcon',
-        update: this.calculateInstanceColorMode
+        transform: this.getInstanceColorMode
       },
       instanceColors: {
-        size: 4,
+        size: this.props.colorFormat.length,
         type: GL.UNSIGNED_BYTE,
+        normalized: true,
         transition: true,
         accessor: 'getColor',
         defaultValue: DEFAULT_COLOR
@@ -112,8 +117,12 @@ export default class IconLayer extends Layer {
       instanceAngles: {
         size: 1,
         transition: true,
-        accessor: 'getAngle',
-        defaultValue: 0
+        accessor: 'getAngle'
+      },
+      instancePixelOffset: {
+        size: 2,
+        transition: true,
+        accessor: 'getPixelOffset'
       }
     });
     /* eslint-enable max-len */
@@ -124,11 +133,13 @@ export default class IconLayer extends Layer {
     super.updateState({props, oldProps, changeFlags});
 
     const attributeManager = this.getAttributeManager();
-    const {iconManager} = this.state;
     const {iconAtlas, iconMapping, data, getIcon} = props;
+    const {iconManager} = this.state;
+
+    iconManager.setProps({loadOptions: props.loadOptions});
 
     let iconMappingChanged = false;
-    const prePacked = iconAtlas || this.props._asyncPropOriginalValues.iconAtlas;
+    const prePacked = iconAtlas || this.internalState.isAsyncPropLoading('iconAtlas');
 
     // prepacked iconAtlas from user
     if (prePacked) {
@@ -151,7 +162,6 @@ export default class IconLayer extends Layer {
         (changeFlags.updateTriggersChanged.all || changeFlags.updateTriggersChanged.getIcon))
     ) {
       iconManager.setProps({data, getIcon});
-      iconMappingChanged = true;
     }
 
     if (iconMappingChanged) {
@@ -162,14 +172,16 @@ export default class IconLayer extends Layer {
 
     if (changeFlags.extensionsChanged) {
       const {gl} = this.context;
-      if (this.state.model) {
-        this.state.model.delete();
-      }
-      this.setState({model: this._getModel(gl)});
+      this.state.model?.delete();
+      this.state.model = this._getModel(gl);
       attributeManager.invalidateAll();
     }
   }
   /* eslint-enable max-statements, complexity */
+
+  get isLoaded() {
+    return super.isLoaded && this.state.iconManager.isLoaded;
+  }
 
   finalizeState() {
     super.finalizeState();
@@ -178,114 +190,76 @@ export default class IconLayer extends Layer {
   }
 
   draw({uniforms}) {
-    const {sizeScale, sizeMinPixels, sizeMaxPixels, sizeUnits, billboard} = this.props;
+    const {sizeScale, sizeMinPixels, sizeMaxPixels, sizeUnits, billboard, alphaCutoff} = this.props;
     const {iconManager} = this.state;
     const {viewport} = this.context;
 
     const iconsTexture = iconManager.getTexture();
     if (iconsTexture) {
       this.state.model
-        .setUniforms(
-          Object.assign({}, uniforms, {
-            iconsTexture,
-            iconsTextureDim: [iconsTexture.width, iconsTexture.height],
-            sizeScale:
-              sizeScale * (sizeUnits === 'pixels' ? viewport.distanceScales.metersPerPixel[2] : 1),
-            sizeMinPixels,
-            sizeMaxPixels,
-            billboard
-          })
-        )
+        .setUniforms(uniforms)
+        .setUniforms({
+          iconsTexture,
+          iconsTextureDim: [iconsTexture.width, iconsTexture.height],
+          sizeScale: sizeScale * (sizeUnits === 'pixels' ? viewport.metersPerPixel : 1),
+          sizeMinPixels,
+          sizeMaxPixels,
+          billboard,
+          alphaCutoff
+        })
         .draw();
     }
   }
 
   _getModel(gl) {
-    const positions = [-1, -1, 0, -1, 1, 0, 1, 1, 0, 1, -1, 0];
+    // The icon-layer vertex shader uses 2d positions
+    // specifed via: attribute vec2 positions;
+    const positions = [-1, -1, -1, 1, 1, 1, 1, -1];
 
-    return new Model(
-      gl,
-      Object.assign({}, this.getShaders(), {
-        id: this.props.id,
-        geometry: new Geometry({
-          drawMode: GL.TRIANGLE_FAN,
-          attributes: {
-            positions: new Float32Array(positions)
+    return new Model(gl, {
+      ...this.getShaders(),
+      id: this.props.id,
+      geometry: new Geometry({
+        drawMode: GL.TRIANGLE_FAN,
+        attributes: {
+          // The size must be explicitly passed here otherwise luma.gl
+          // will default to assuming that positions are 3D (x,y,z)
+          positions: {
+            size: 2,
+            value: new Float32Array(positions)
           }
-        }),
-        isInstanced: true,
-        shaderCache: this.context.shaderCache
-      })
-    );
+        }
+      }),
+      isInstanced: true
+    });
   }
 
   _onUpdate() {
     this.setNeedsRedraw();
   }
 
-  calculateInstancePositions64xyLow(attribute) {
-    const isFP64 = this.use64bitPositions();
-    attribute.constant = !isFP64;
-
-    if (!isFP64) {
-      attribute.value = new Float32Array(2);
-      return;
-    }
-
-    const {data, getPosition} = this.props;
-    const {value} = attribute;
-    let i = 0;
-    const {iterable, objectInfo} = createIterable(data);
-    for (const object of iterable) {
-      objectInfo.index++;
-      const position = getPosition(object, objectInfo);
-      value[i++] = fp64LowPart(position[0]);
-      value[i++] = fp64LowPart(position[1]);
+  _onError(evt) {
+    const {onIconError} = this.getCurrentLayer().props;
+    if (onIconError) {
+      onIconError(evt);
+    } else {
+      log.error(evt.error)();
     }
   }
 
-  calculateInstanceOffsets(attribute, {startRow, endRow}) {
-    const {data} = this.props;
-    const {iconManager} = this.state;
-    const {value, size} = attribute;
-    let i = startRow * size;
-    const {iterable, objectInfo} = createIterable(data, startRow, endRow);
-    for (const object of iterable) {
-      objectInfo.index++;
-      const rect = iconManager.getIconMapping(object, objectInfo);
-      value[i++] = rect.width / 2 - rect.anchorX || 0;
-      value[i++] = rect.height / 2 - rect.anchorY || 0;
-    }
+  getInstanceOffset(icon) {
+    const rect = this.state.iconManager.getIconMapping(icon);
+    return [rect.width / 2 - rect.anchorX || 0, rect.height / 2 - rect.anchorY || 0];
   }
 
-  calculateInstanceColorMode(attribute, {startRow, endRow}) {
-    const {data} = this.props;
-    const {iconManager} = this.state;
-    const {value, size} = attribute;
-    let i = startRow * size;
-    const {iterable, objectInfo} = createIterable(data, startRow, endRow);
-    for (const object of iterable) {
-      objectInfo.index++;
-      const mapping = iconManager.getIconMapping(object, objectInfo);
-      const colorMode = mapping.mask;
-      value[i++] = colorMode ? 1 : 0;
-    }
+  getInstanceColorMode(icon) {
+    const mapping = this.state.iconManager.getIconMapping(icon);
+    return mapping.mask ? 1 : 0;
   }
 
-  calculateInstanceIconFrames(attribute, {startRow, endRow}) {
-    const {data} = this.props;
-    const {iconManager} = this.state;
-    const {value, size} = attribute;
-    let i = startRow * size;
-    const {iterable, objectInfo} = createIterable(data, startRow, endRow);
-    for (const object of iterable) {
-      objectInfo.index++;
-      const rect = iconManager.getIconMapping(object, objectInfo);
-      value[i++] = rect.x || 0;
-      value[i++] = rect.y || 0;
-      value[i++] = rect.width || 0;
-      value[i++] = rect.height || 0;
-    }
+  getInstanceIconFrame(icon) {
+    const rect = this.state.iconManager.getIconMapping(icon);
+    return [rect.x || 0, rect.y || 0, rect.width || 0, rect.height || 0];
   }
 }
 

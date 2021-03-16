@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-import {Layer, createIterable, fp64LowPart} from '@deck.gl/core';
+import {Layer, project32, picking} from '@deck.gl/core';
 import GL from '@luma.gl/constants';
 import {Model, Geometry} from '@luma.gl/core';
 
@@ -36,15 +36,17 @@ const defaultProps = {
   widthUnits: 'pixels',
   widthScale: {type: 'number', value: 1, min: 0},
   widthMinPixels: {type: 'number', value: 0, min: 0},
-  widthMaxPixels: {type: 'number', value: Number.MAX_SAFE_INTEGER, min: 0},
-
-  // Deprecated, remove in v8
-  getStrokeWidth: {deprecatedFor: 'getWidth'}
+  widthMaxPixels: {type: 'number', value: Number.MAX_SAFE_INTEGER, min: 0}
 };
 
 export default class LineLayer extends Layer {
   getShaders() {
-    return super.getShaders({vs, fs, modules: ['project32', 'picking']});
+    return super.getShaders({vs, fs, modules: [project32, picking]});
+  }
+
+  // This layer has its own wrapLongitude logic
+  get wrapLongitude() {
+    return false;
   }
 
   initializeState() {
@@ -54,22 +56,22 @@ export default class LineLayer extends Layer {
     attributeManager.addInstanced({
       instanceSourcePositions: {
         size: 3,
+        type: GL.DOUBLE,
+        fp64: this.use64bitPositions(),
         transition: true,
         accessor: 'getSourcePosition'
       },
       instanceTargetPositions: {
         size: 3,
+        type: GL.DOUBLE,
+        fp64: this.use64bitPositions(),
         transition: true,
         accessor: 'getTargetPosition'
       },
-      instanceSourceTargetPositions64xyLow: {
-        size: 4,
-        accessor: ['getSourcePosition', 'getTargetPosition'],
-        update: this.calculateInstanceSourceTargetPositions64xyLow
-      },
       instanceColors: {
-        size: 4,
+        size: this.props.colorFormat.length,
         type: GL.UNSIGNED_BYTE,
+        normalized: true,
         transition: true,
         accessor: 'getColor',
         defaultValue: [0, 0, 0, 255]
@@ -89,29 +91,36 @@ export default class LineLayer extends Layer {
 
     if (changeFlags.extensionsChanged) {
       const {gl} = this.context;
-      if (this.state.model) {
-        this.state.model.delete();
-      }
-      this.setState({model: this._getModel(gl)});
+      this.state.model?.delete();
+      this.state.model = this._getModel(gl);
       this.getAttributeManager().invalidateAll();
     }
   }
 
   draw({uniforms}) {
     const {viewport} = this.context;
-    const {widthUnits, widthScale, widthMinPixels, widthMaxPixels} = this.props;
+    const {widthUnits, widthScale, widthMinPixels, widthMaxPixels, wrapLongitude} = this.props;
 
-    const widthMultiplier = widthUnits === 'pixels' ? viewport.distanceScales.metersPerPixel[2] : 1;
+    const widthMultiplier = widthUnits === 'pixels' ? viewport.metersPerPixel : 1;
 
     this.state.model
-      .setUniforms(
-        Object.assign({}, uniforms, {
-          widthScale: widthScale * widthMultiplier,
-          widthMinPixels,
-          widthMaxPixels
-        })
-      )
+      .setUniforms(uniforms)
+      .setUniforms({
+        widthScale: widthScale * widthMultiplier,
+        widthMinPixels,
+        widthMaxPixels,
+        useShortestPath: wrapLongitude ? 1 : 0
+      })
       .draw();
+
+    if (wrapLongitude) {
+      // Render a second copy for the clipped lines at the 180th meridian
+      this.state.model
+        .setUniforms({
+          useShortestPath: -1
+        })
+        .draw();
+    }
   }
 
   _getModel(gl) {
@@ -124,44 +133,17 @@ export default class LineLayer extends Layer {
      */
     const positions = [0, -1, 0, 0, 1, 0, 1, -1, 0, 1, 1, 0];
 
-    return new Model(
-      gl,
-      Object.assign({}, this.getShaders(), {
-        id: this.props.id,
-        geometry: new Geometry({
-          drawMode: GL.TRIANGLE_STRIP,
-          attributes: {
-            positions: new Float32Array(positions)
-          }
-        }),
-        isInstanced: true,
-        shaderCache: this.context.shaderCache
-      })
-    );
-  }
-
-  calculateInstanceSourceTargetPositions64xyLow(attribute, {startRow, endRow}) {
-    const isFP64 = this.use64bitPositions();
-    attribute.constant = !isFP64;
-
-    if (!isFP64) {
-      attribute.value = new Float32Array(4);
-      return;
-    }
-
-    const {data, getSourcePosition, getTargetPosition} = this.props;
-    const {value, size} = attribute;
-    let i = startRow * size;
-    const {iterable, objectInfo} = createIterable(data, startRow, endRow);
-    for (const object of iterable) {
-      objectInfo.index++;
-      const sourcePosition = getSourcePosition(object, objectInfo);
-      const targetPosition = getTargetPosition(object, objectInfo);
-      value[i++] = fp64LowPart(sourcePosition[0]);
-      value[i++] = fp64LowPart(sourcePosition[1]);
-      value[i++] = fp64LowPart(targetPosition[0]);
-      value[i++] = fp64LowPart(targetPosition[1]);
-    }
+    return new Model(gl, {
+      ...this.getShaders(),
+      id: this.props.id,
+      geometry: new Geometry({
+        drawMode: GL.TRIANGLE_STRIP,
+        attributes: {
+          positions: new Float32Array(positions)
+        }
+      }),
+      isInstanced: true
+    });
   }
 }
 

@@ -1,5 +1,14 @@
 import test from 'tape-catch';
-import {View, Viewport, MapView, OrbitView, OrthographicView, FirstPersonView} from 'deck.gl';
+import {
+  View,
+  Viewport,
+  MapView,
+  OrbitView,
+  OrthographicView,
+  FirstPersonView,
+  _GlobeView as GlobeView
+} from 'deck.gl';
+import {equals} from 'math.gl';
 
 test('View#imports', t => {
   t.ok(View, 'View import ok');
@@ -85,6 +94,27 @@ test('FirstPersonView', t => {
   t.end();
 });
 
+test('GlobeView', t => {
+  const view = new GlobeView();
+  const viewport = view.makeViewport({
+    width: 100,
+    height: 100,
+    viewState: {
+      longitude: -122.4,
+      latitude: 37.8,
+      zoom: 12,
+      width: 200,
+      height: 200
+    }
+  });
+  t.ok(viewport instanceof Viewport, 'Mapview.makeViewport returns valid viewport');
+  t.is(viewport.id, view.id, 'Viewport has correct id');
+  t.ok(viewport.width === 100 && viewport.height === 100, 'Viewport has correct size');
+  t.is(viewport.zoom, 12, 'Viewport has correct parameters');
+
+  t.end();
+});
+
 test('OrbitView', t => {
   const view = new OrbitView({id: '3d-view'});
   const viewport = view.makeViewport({
@@ -103,6 +133,68 @@ test('OrbitView', t => {
   t.is(viewport.id, view.id, 'Viewport has correct id');
   t.ok(viewport.width === 100 && viewport.height === 100, 'Viewport has correct size');
   t.is(viewport.zoom, 1, 'Viewport has correct parameters');
+
+  t.end();
+});
+
+// eslint-disable-next-line complexity
+test('OrbitView#project', t => {
+  const view = new OrbitView({id: '3d-view'});
+  let viewport;
+  let p;
+  let center;
+
+  viewport = view.makeViewport({
+    width: 100,
+    height: 100,
+    viewState: {
+      target: [1, 2, 3],
+      zoom: 1,
+      rotationOrbit: 0,
+      rotationX: 0
+    }
+  });
+  center = viewport.project([1, 2, 3]);
+  t.ok(equals(center[0], 50) && equals(center[1], 50), 'target is at viewport center');
+
+  viewport = view.makeViewport({
+    width: 100,
+    height: 100,
+    viewState: {
+      orbitAxis: 'Z',
+      target: [0, 0, 0],
+      zoom: 1,
+      rotationOrbit: 0,
+      rotationX: 0
+    }
+  });
+  center = viewport.project([0, 0, 0]);
+  p = viewport.project([0, 0, 1]);
+  t.ok(equals(p[0], 50) && p[1] < 50 && equals(p[2], center[2]), 'z axis points up');
+  p = viewport.project([0, 1, 0]);
+  t.ok(equals(p[0], 50) && equals(p[1], 50) && p[2] > center[2], 'y axis points away');
+  p = viewport.project([1, 0, 0]);
+  t.ok(p[0] > 50 && p[1] === 50 && p[2] === center[2], 'x axis points right');
+
+  viewport = view.makeViewport({
+    width: 100,
+    height: 100,
+    viewState: {
+      orbitAxis: 'Y',
+      target: [0, 0, 0],
+      zoom: 1,
+      rotationOrbit: 0,
+      rotationX: 0
+    }
+  });
+
+  center = viewport.project([0, 0, 0]);
+  p = viewport.project([0, 0, 1]);
+  t.ok(equals(p[0], 50) && equals(p[1], 50) && p[2] < center[2], 'z axis points forward');
+  p = viewport.project([0, 1, 0]);
+  t.ok(equals(p[0], 50) && p[1] < 50 && equals(p[2], center[2]), 'y axis points up');
+  p = viewport.project([1, 0, 0]);
+  t.ok(p[0] > 50 && equals(p[1], 50) && equals(p[2], center[2]), 'x axis points right');
 
   t.end();
 });

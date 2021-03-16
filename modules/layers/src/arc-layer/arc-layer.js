@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-import {Layer, createIterable, fp64LowPart} from '@deck.gl/core';
+import {Layer, project32, picking} from '@deck.gl/core';
 
 import GL from '@luma.gl/constants';
 import {Model, Geometry} from '@luma.gl/core';
@@ -37,18 +37,22 @@ const defaultProps = {
   getHeight: {type: 'accessor', value: 1},
   getTilt: {type: 'accessor', value: 0},
 
+  greatCircle: false,
+
   widthUnits: 'pixels',
   widthScale: {type: 'number', value: 1, min: 0},
   widthMinPixels: {type: 'number', value: 0, min: 0},
-  widthMaxPixels: {type: 'number', value: Number.MAX_SAFE_INTEGER, min: 0},
-
-  // Deprecated, remove in v8
-  getStrokeWidth: {deprecatedFor: 'getWidth'}
+  widthMaxPixels: {type: 'number', value: Number.MAX_SAFE_INTEGER, min: 0}
 };
 
 export default class ArcLayer extends Layer {
   getShaders() {
-    return super.getShaders({vs, fs, modules: ['picking']}); // 'project' module added by default.
+    return super.getShaders({vs, fs, modules: [project32, picking]}); // 'project' module added by default.
+  }
+
+  // This layer has its own wrapLongitude logic
+  get wrapLongitude() {
+    return false;
   }
 
   initializeState() {
@@ -56,27 +60,32 @@ export default class ArcLayer extends Layer {
 
     /* eslint-disable max-len */
     attributeManager.addInstanced({
-      instancePositions: {
-        size: 4,
+      instanceSourcePositions: {
+        size: 3,
+        type: GL.DOUBLE,
+        fp64: this.use64bitPositions(),
         transition: true,
-        accessor: ['getSourcePosition', 'getTargetPosition'],
-        update: this.calculateInstancePositions
+        accessor: 'getSourcePosition'
       },
-      instancePositions64Low: {
-        size: 4,
-        accessor: ['getSourcePosition', 'getTargetPosition'],
-        update: this.calculateInstancePositions64Low
+      instanceTargetPositions: {
+        size: 3,
+        type: GL.DOUBLE,
+        fp64: this.use64bitPositions(),
+        transition: true,
+        accessor: 'getTargetPosition'
       },
       instanceSourceColors: {
-        size: 4,
+        size: this.props.colorFormat.length,
         type: GL.UNSIGNED_BYTE,
+        normalized: true,
         transition: true,
         accessor: 'getSourceColor',
         defaultValue: DEFAULT_COLOR
       },
       instanceTargetColors: {
-        size: 4,
+        size: this.props.colorFormat.length,
         type: GL.UNSIGNED_BYTE,
+        normalized: true,
         transition: true,
         accessor: 'getTargetColor',
         defaultValue: DEFAULT_COLOR
@@ -108,28 +117,34 @@ export default class ArcLayer extends Layer {
     // Re-generate model if geometry changed
     if (changeFlags.extensionsChanged) {
       const {gl} = this.context;
-      if (this.state.model) {
-        this.state.model.delete();
-      }
-      this.setState({model: this._getModel(gl)});
+      this.state.model?.delete();
+      this.state.model = this._getModel(gl);
       this.getAttributeManager().invalidateAll();
     }
   }
 
   draw({uniforms}) {
     const {viewport} = this.context;
-    const {widthUnits, widthScale, widthMinPixels, widthMaxPixels} = this.props;
+    const {
+      widthUnits,
+      widthScale,
+      widthMinPixels,
+      widthMaxPixels,
+      greatCircle,
+      wrapLongitude
+    } = this.props;
 
-    const widthMultiplier = widthUnits === 'pixels' ? viewport.distanceScales.metersPerPixel[2] : 1;
+    const widthMultiplier = widthUnits === 'pixels' ? viewport.metersPerPixel : 1;
 
     this.state.model
-      .setUniforms(
-        Object.assign({}, uniforms, {
-          widthScale: widthScale * widthMultiplier,
-          widthMinPixels,
-          widthMaxPixels
-        })
-      )
+      .setUniforms(uniforms)
+      .setUniforms({
+        greatCircle,
+        widthScale: widthScale * widthMultiplier,
+        widthMinPixels,
+        widthMaxPixels,
+        useShortestPath: wrapLongitude
+      })
       .draw();
   }
 
@@ -144,71 +159,24 @@ export default class ArcLayer extends Layer {
      *   (0, 1)"-------------(1, 1)
      */
     for (let i = 0; i < NUM_SEGMENTS; i++) {
-      positions = positions.concat([i, -1, 0, i, 1, 0]);
+      positions = positions.concat([i, 1, 0, i, -1, 0]);
     }
 
-    const model = new Model(
-      gl,
-      Object.assign({}, this.getShaders(), {
-        id: this.props.id,
-        geometry: new Geometry({
-          drawMode: GL.TRIANGLE_STRIP,
-          attributes: {
-            positions: new Float32Array(positions)
-          }
-        }),
-        isInstanced: true,
-        shaderCache: this.context.shaderCache
-      })
-    );
+    const model = new Model(gl, {
+      ...this.getShaders(),
+      id: this.props.id,
+      geometry: new Geometry({
+        drawMode: GL.TRIANGLE_STRIP,
+        attributes: {
+          positions: new Float32Array(positions)
+        }
+      }),
+      isInstanced: true
+    });
 
     model.setUniforms({numSegments: NUM_SEGMENTS});
 
     return model;
-  }
-
-  calculateInstancePositions(attribute, {startRow, endRow}) {
-    const {data, getSourcePosition, getTargetPosition} = this.props;
-    const {value, size} = attribute;
-    let i = startRow * size;
-    const {iterable, objectInfo} = createIterable(data, startRow, endRow);
-    for (const object of iterable) {
-      objectInfo.index++;
-      const sourcePosition = getSourcePosition(object, objectInfo);
-      value[i++] = sourcePosition[0];
-      value[i++] = sourcePosition[1];
-      // Call `getTargetPosition` after `sourcePosition` is used in case both accessors write into
-      // the same temp array
-      const targetPosition = getTargetPosition(object, objectInfo);
-      value[i++] = targetPosition[0];
-      value[i++] = targetPosition[1];
-    }
-  }
-
-  calculateInstancePositions64Low(attribute, {startRow, endRow}) {
-    const isFP64 = this.use64bitPositions();
-    attribute.constant = !isFP64;
-
-    if (!isFP64) {
-      attribute.value = new Float32Array(4);
-      return;
-    }
-
-    const {data, getSourcePosition, getTargetPosition} = this.props;
-    const {value, size} = attribute;
-    let i = startRow * size;
-    const {iterable, objectInfo} = createIterable(data, startRow, endRow);
-    for (const object of iterable) {
-      objectInfo.index++;
-      const sourcePosition = getSourcePosition(object, objectInfo);
-      value[i++] = fp64LowPart(sourcePosition[0]);
-      value[i++] = fp64LowPart(sourcePosition[1]);
-      // Call `getTargetPosition` after `sourcePosition` is used in case both accessors write into
-      // the same temp array
-      const targetPosition = getTargetPosition(object, objectInfo);
-      value[i++] = fp64LowPart(targetPosition[0]);
-      value[i++] = fp64LowPart(targetPosition[1]);
-    }
   }
 }
 

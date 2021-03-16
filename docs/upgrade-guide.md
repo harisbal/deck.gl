@@ -1,41 +1,373 @@
 # Upgrade Guide
 
-## Upgrading from deck.gl v7.0 to v7.1
+## Upgrading from deck.gl v8.4 to v8.5
 
-### Layer Props
+### Transpilation
 
-Breaking Changes:
+The module entry point is now only lightly transpiled for the most commonly used evergreen browsers. This change offers significant savings on bundle size. If your application needs to support older browsers such as IE 11, make sure to include `node_modules` in your babel config.
 
-- Fixed a bug where `coordinateOrigin`'s `z` is not applied in `METER_OFFSETS` and `LNGLAT_OFFSETS` coordinate systems.
+### Layers
 
-Deprecations:
+- `TextLayer`'s `backgroundColor` prop is deprecated. Use `background: true` and `getBackgroundColor` instead.
+- `TextLayer`'s default `fontSettings` have changed. When using `sdf`, the default `buffer` is now `4` and the default `radius` is now `12`.
+- `PathLayer`'s `rounded` prop is deprecated, replaced by two separate flags `jointRounded` and `capRounded`.
+- `GeoJsonLayer`'s `lineJointRounded` prop now only controls line joints. To use rounded line caps, set `lineCapRounded` to `true`.
+- Dashed lines via `PathStyleExtension` now draw rounded dash caps if `capRounded` is `true`.
 
-- `getColor` props in `ColumnLayer` and `H3HexagonLayer` are deprecated. Use `getLineColor` and `getFillColor` instead.
+## Upgrading from deck.gl v8.3 to v8.4
 
-### GridLayer
+### wrapLongitude
 
-Breaking Changes:
+The behavior of `wrapLongitude` has changed. Before, setting this prop to `true` would project vertices to a copy of the map that is closer to the current center. Starting with v8.4, enabling this prop would "normalize" the geometry to the [-180, 180] longitude range. See the following list for layer-specific changes:
 
-- If your application is not subclassing `GridLayer`, no additional changes are needed. If you are subclassing `GridLayer`, you should now subclass `CPUGridLayer` instead, and either use it directly, or provide it as the sublayer class for `GridLayer` using `_subLayerProps`:
+- `LineLayer` and `ArcLayer`: always draw the shortest path between source and target positions. If the shortest path crosses the 180th meridian, it is split into two segments.
+- Layers that draw each object with a single position anchor, e.g. `ScatterplotLayer`, `IconLayer`, `TextLayer`: move the anchor point into the `[-180, 180]` range.
+
+This change makes layers render more predictably at low zoom levels. To draw horizontally continuous map with multiple copies of the world, use [MapView](/docs/api-reference/core/map-view.md) with the `repeat` option:
 
 ```js
-class EnhancedCPUGridLayer extends CPUGridLayer {
-// enhancments
-}
-
-// Code initilizing GridLayer
-const myGridLayer = new GridLayer({
-  // props
+new Deck({
+  views: new MapView({repeat: true}),
   ...
-  // Override sublayer type for 'CPU'
-  _subLayerProps: {
-    CPU: {
-      type: EnhancedCPUGridLayer
-    }
+})
+```
+
+### pickingInfo
+
+A legacy field `pickingInfo.lngLat` has been removed. Use `pickingInfo.coordinate` instead.
+
+### Layers
+
+- `MVTLayer`'s `onHover` and `onClick` callbacks now yield the `info.object` feature coordinates in WGS84 standard.
+- `ScenegraphLayer` now has built-in support for `GLTFLoader`. It's no longer necessary to call `registerLoaders` before using it.
+- `SolidPolygonLayer` now enforces the winding order for outer polygons and holes. This ensures the correct orientation of an extruded polygon's surfaces, and therefore consistent culling and lighting effect results. This may change the visual outcome of your layers if the winding order was wrongly deduced in the previous versions. When using this layer with `_normalize: false`, a new prop `_windingOrder` can be used to specify the winding order used by your polygon data.
+- `ColumnLayer` now enforces the winding order for vertices. This may change the lighting effect appearance in `HexagonLayer` and `H3HexagonLayer` slightly.
+- `TileLayer`'s `onViewportLoad` callback now receives as argument an array of loaded [Tile](/docs/api-reference/geo-layers/tile-layer.md#tile) instances. At previous version the argument was an array of tile content.
+
+
+## Upgrading from deck.gl v8.2 to v8.3
+
+- The following is added to the default image loading options: `{imagebitmap: {premultiplyAlpha: 'none'}}` (previously `default`). This generates more visually similar outcome between `ImageBitmap` and `Image` formats (see changes in 8.2 below). You can override this behavior with the `loadOptions` prop of a layer. See [ImageLoader options](https://loaders.gl/modules/images/docs/api-reference/image-loader#options) for more information.
+
+
+## Upgrading from deck.gl v8.1 to v8.2
+
+- The `TileLayer` now rounds the current `zoom` to determine the `z` at which to load tiles. This will load less tiles than the previous version. You can adjust the `tileSize` prop to modify this behavior.
+- Image URLs are now by default loaded in the `ImageBitmap` format, versus `Image` in the previous version. This improves the performance of loading textures. You may override this by supplying the `loadOptions` prop of a layer:
+
+```js
+loadOptions: {
+  image: {type: 'image'}
+}
+```
+
+See [ImageLoader options](https://loaders.gl/modules/images/docs/api-reference/image-loader#options);
+
+
+## Upgrading from deck.gl v8.0 to v8.1
+
+### Breaking Changes
+
+- `s2-geometry` is no longer a dependency of `@deck.gl/geo-layers`. If you were using this module in an application, it needs to be explicitly added to package.json.
+- deck.gl no longer crashes if one of the layers encounters an error during update and/or render. By default, errors are now logged to the console. Specify the `onError` callback to manually handle errors in your application.
+- `Deck` now reacts to changes in the `initialViewState` prop. In 8.0 and earlier versions, this prop was not monitored after the deck instance was constructed. Starting 8.1, if `initialViewState` changes deeply, the camera will be reset. It is recommended that you use a constant for `initialViewState` to achieve behavior consistent with the previous versions.
+
+##### Tile3DLayer
+
+- A new prop `loader` needs to be provided, one of `CesiumIonLoader`, `Tiles3DLoader` from (`@loaders.gl/3d-tiles`) or `I3SLoader` from (`@loaders.gl/i3s`).
+- The `loadOptions` prop is now used for passing all loaders.gl options, not just [`Tileset3D`](https://loaders.gl/modules/tiles/docs/api-reference/tileset-3d#constructor-1). To revert back to the 8.0 behavior, use `{tileset: {throttleRequest: true}}`.
+- `_ionAccessId` and `_ionAccesToken` props are removed. To render an ion dataset with `Tile3DLayer`, follow this example:
+
+```js
+import {CesiumIonLoader} from '@loaders.gl/3d-tiles';
+import {Tile3DLayer} from '@deck.gl/geo-layers';
+
+// load 3d tiles from Cesium ion
+const layer = new Tile3DLayer({
+  id: 'tile-3d-layer',
+  // tileset json file url
+  data: 'https://assets.cesium.com/<ion_access_id>/tileset.json',
+  loader: CesiumIonLoader,
+  // https://cesium.com/docs/rest-api/
+  loadOptions: {
+    // https://loaders.gl/modules/tiles/docs/api-reference/tileset-3d#constructor-1
+    tileset: {
+      throttleRequests: true
+    },
+    'cesium-ion': {accessToken: '<ion_access_token_for_your_asset>'}
   }
 });
 ```
 
+## Upgrading from deck.gl v7.x to v8.0
+
+### Breaking Changes
+
+##### Defaults
+
+- The `opacity` prop of all layers is now default to `1` (used to be `0.8`).
+- [`SimpleMeshLayer`](/docs/api-reference/mesh-layers/simple-mesh-layer.md) and [`ScenegraphLayer`](/docs/api-reference/mesh-layers/scenegraph-layer.md): `modelMatrix` will be composed to instance transformation matrix (derived from  layer props `getOrientation`, `getScale`, `getTranslation` and `getTransformMatrix`) under `CARTESIAN` and `METER_OFFSETS` [coordinates](/docs/developer-guide/coordinate-systems.md).
+
+##### Removed
+
+- `ArcLayer` props
+  + `getStrokeWidth`: use `getWidth`
+- `LineLayer` props
+  + `getStrokeWidth`: use `getWidth`
+- `PathLayer` props
+  + `getDashArray`: use [PathStyleExtension](/docs/api-reference/extensions/path-style-extension.md)
+- `PolygonLayer` and `GeoJsonLayer` props
+  + `getLineDashArray`: use [PathStyleExtension](/docs/api-reference/extensions/path-style-extension.md)
+- `H3HexagonLayer` props
+  + `getColor`: use `getFillColor` and `getLineColor`
+- `Tile3DLayer` props:
+  + `onTileLoadFail`: use `onTileError`
+- `TileLayer` props:
+  + `onViewportLoaded`: use `onViewportLoad`
+- `project` shader module
+  + `project_scale`: use `project_size`
+  + `project_to_clipspace`: use `project_position_to_clipspace`
+  + `project_pixel_to_clipspace`: use `project_pixel_size_to_clipspace`
+- `WebMercatorViewport` class
+  + `getLocationAtPoint`: use `getMapCenterByLngLatPosition`
+  + `lngLatDeltaToMeters`
+  + `metersToLngLatDelta`
+- `Layer` class
+  + `setLayerNeedsUpdate`: use `setNeedsUpdate`
+  + `setUniforms`: use `model.setUniforms`
+  + `use64bitProjection`
+  + `projectFlat`: use `projectPosition`
+- `PerspectiveView` class - use `FirstPersonView`
+- `ThirdPersonView` class - use `MapView` (geospatial) or `OrbitView` (info-vis)
+- `COORDINATE_SYSTEM` enum
+  + `LNGLAT_DEPRECATED`: use `LNGLAT`
+  + `METERS`: use `METER_OFFSETS`
+
+
+##### React
+
+- `DeckGL` no longer injects its children with view props (`width`, `height`, `viewState` etc.). If your custom component needs these props, consider using the [ContextProvider](/docs/api-reference/react/deckgl.md#react-context) or a render callback:
+
+  ```jsx
+  <DeckGL>
+    {({width, height, viewState}) => (...)}
+  </DeckGL>
+  ```
+
+- The children of `DeckGL` are now placed above the canvas by default (except the react-map-gl base map). Wrap them in e.g. `<div style={{zIndex: -1}}>` if they are intended to be placed behind the canvas.
+
+##### Debugging
+
+deck.gl now removes most logging when bundling under `NODE_ENV=production`.
+
+
+##### Standalone bundle
+
+The pre-bundled version, a.k.a. the [scripting API](/docs/get-started/using-standalone.md#using-the-scripting-api) has been aligned with the interface of the core [Deck](/docs/api-reference/core/deck.md) class.
+
+- Top-level view state props such as `longitude`, `latitude`, `zoom` are no longer supported. To specify the default view state, use `initialViewState`.
+- `controller` is no longer on by default, use `controller: true`.
+
+
+##### Textures
+
+In older versions of deck, we used to set `UNPACK_FLIP_Y_WEBGL` by default when creating textures from images. This is removed in v8.0 to better align with [WebGL best practice](https://github.com/KhronosGroup/WebGL/issues/2577). As a result, the texCoords in the shaders of `BitmapLayer`, `IconLayer` and `TextLayer` are y-flipped. This only affects users who extend these layers.
+
+Users of `SimpleMeshLayer` with texture will need to flip their texture image vertically.
+
+The change has allowed us to support loading textures from `ImageBitmap`, in use cases such as rendering to `OffscreenCanvas` on a web worker.
+
+##### projection system
+
+- The [common space](/docs/shader-module/project.md) is no longer scaled to the current zoom level. This is part of an effort to make the geometry calculation more consistent and predictable. While one old common unit is equivalent to 1 screen pixel at the viewport center, one new common unit is equivalent to `viewport.scale` pixels at the viewport center.
+- `viewport.distanceScales` keys are renamed:
+  + `pixelsPerMeter` -> `unitsPerMeter`
+  + `metersPerPixel` -> `metersPerUnit`
+- Low part of a `DOUBLE` attribute is renamed from `*64xyLow` to `*64Low` and uses the same size as the high part. This mainly affect position attributes, e.g. all `vec2 positions64xyLow` and `vec2 instancePositions64xyLow` are now `vec3 positions64Low` and `vec3 instancePositions64Low`.
+  + `project`: `vec3 project_position(vec3 position, vec2 position64xyLow)` is now `vec3 project_position(vec3 position, vec3 position64Low)`.
+  + `project`: `vec4 project_position(vec4 position, vec2 position64xyLow)` is now `vec4 project_position(vec4 position, vec3 position64Low)`.
+  + `project32` and `project64`: `vec4 project_position_to_clipspace(vec3 position, vec2 position64xyLow, vec3 offset)` is now `vec4 project_position_to_clipspace(vec3 position, vec3 position64Low, vec3 offset)`.
+- The shader module [project64](/docs/api-reference/core/project64.md) is no longer included in `@deck.gl/core` and `deck.gl`. You can still import it from `@deck.gl/extensions`.
+
+##### Shader modules
+
+This change affects custom layers. deck.gl is no longer registering shaders by default. This means any `modules` array defined in `layer.getShaders()` or `new Model()` must now use the full shader module objects, instead of just their names. All supported shader modules can be imported from `@deck.gl/core`.
+
+```js
+/// OLD
+new Model({
+  // ...
+  modules: ['picking', 'project32', 'gouraud-lighting']
+});
+```
+
+Should now become
+
+```js
+import {picking, project32, gouraudLighting} from '@deck.gl/core';
+/// NEW
+new Model({
+  // ...
+  modules: [picking, project32, gouraudLighting]
+});
+```
+
+##### Auto view state update
+
+A bug was fixed where initial view state tracking could sometimes overwrite user-provided `viewState` prop. Apps that rely on auto view state update by specifying `initialViewState` should make sure that `viewState` is never assigned. If manual view state update is desired, use `viewState` and `onViewStateChange` instead. See [developer guide](/docs/developer-guide/views.md#using-a-view-class-with-view-state) for examples.
+
+We have fixed a bug when using `initialViewState` with multiple views. In the past, the state change in one view is unintendedly propagated to all views. As a result of this fix, multiple views (e.g. mini map) are no longer synchronized by default. To synchronize them, define the views with an explicit `viewState.id`:
+
+```js
+new Deck({
+  // ...
+  views: [
+    new MapView({id: 'main'}),
+    new MapView({id: 'minimap', controller: false, viewState: {id: 'main', pitch: 0, zoom: 10}})
+  ]
+})
+```
+
+See [View class](/docs/api-reference/core/view.md) documentation for details.
+
+
+## Upgrading from deck.gl v7.2 to v7.3
+
+#### Core
+
+- `layer.setLayerNeedsUpdate` is renamed to `layer.setNeedsUpdate()` and the old name will be removed in the next major release.
+- Previously deprecated `Layer` class method, `screenToDevicePixels`, is removed. Use luma.gl [utility methods](https://luma.gl/docs/api-reference/webgl-2-classes/device-pixels) instead.
+
+#### Layers
+
+- `ScreenGridLayer`: support is now limited to browsers that implement either WebGL2 or the `OES_texture_float` extension. [coverage stats](https://webglstats.com/webgl/extension/OES_texture_float)
+- Some shader attributes are renamed for consistency:
+
+| Layer | Old | New |
+| ----- | --- | --- |
+| `LineLayer` | `instanceSourceTargetPositions64xyLow.xy` | `instanceSourcePositions64xyLow` |
+| | `instanceSourceTargetPositions64xyLow.zw` | `instanceTargetPositions64xyLow` |
+| `PathLayer` | `instanceLeftStartPositions64xyLow.xy` | `instanceLeftPositions64xyLow`  |
+| | `instanceLeftStartPositions64xyLow.zw` | `instanceStartPositions64xyLow` |
+| | `instanceEndRightPositions64xyLow.xy`  | `instanceEndPositions64xyLow`   |
+| | `instanceEndRightPositions64xyLow.zw`  | `instanceRightPositions64xyLow` |
+| `ArcLayer` | `instancePositions64Low` | `instancePositions64xyLow`  |
+| `ScenegraphLayer` | `instancePositions64xy` | `instancePositions64xyLow`  |
+| `SimpleMeshLayer` | `instancePositions64xy` | `instancePositions64xyLow`  |
+
+
+#### @deck.gl/json
+
+- Non-breaking Change: The `_JSONConverter` class has been renamed to `JSONConverter` (deprecated alias still available).
+- Non-breaking Change: The `_JSONConverter.convertJson()` method has been renamed to `JSONConverter.convert()`  (deprecated stub still available).
+- Breaking Change: The `_JSONConverter` no longer automatically injects deck.gl `View` classes and enumerations. If required need to import and add these to your `JSONConfiguration`.
+- Removed: The `JSONLayer` is no longer included in this module. The code for this layer has been moved to an example in `/test/apps/json-layer`, and would need to be copied into applications to be used.
+
+
+## Upgrading from deck.gl v7.1 to v7.2
+
+#### Breaking Changes
+
+##### Layer methods
+
+Following `Layer` class methods have been removed :
+
+| Removed            | Alternate       | Comment |
+| ---              | --- | --- |
+| `use64bitProjection`  | use `Fp64Extension` | details in `fp64 prop` section below  |
+| `is64bitEnabled`      | use `Fp64Extension` | details in `fp64 prop` section below  |
+| `updateAttributes` | `_updateAttributes` | method is renamed |
+
+
+##### fp64 prop
+
+The deprecated `fp64` prop is removed. The current 32-bit projection is generally precise enough for almost all use cases. If you previously use this feature:
+
+  ```js
+  /// old
+  import {COORDINATE_SYSTEM} from '@deck.gl/core';
+
+  new ScatterplotLayer({
+    coordinateSystem: COORDINATE_SYSTEM.LNGLAT_DEPRECATED,
+    fp64: true,
+    ...
+  })
+  ```
+
+  It can be changed to:
+
+  ```js
+  /// new
+  import {COORDINATE_SYSTEM} from '@deck.gl/core';
+  import {Fp64Extension} from '@deck.gl/extensions';
+
+  new ScatterplotLayer({
+    coordinateSystem: COORDINATE_SYSTEM.LNGLAT_DEPRECATED,
+    extensions: [new Fp64Extension()],
+    ...
+  })
+  ```
+
+##### Color Attributes and Uniforms
+
+All core layer shaders now receive **normalized** color attributes and uniforms. If you were previously subclassing a core layer with custom vertex shaders, you should expect the color attributes to be in `[0, 1]` range instead of `[0, 255]`.
+
+##### project64 Shader Module
+
+The `project64` shader module is no longer registered by default. If you were previously using a custom layer that depends on this module:
+
+  ```js
+  getShaders() {
+    return {vs, fs, modules: ['project64']};
+  }
+  ```
+
+  It can be changed to:
+
+  ```js
+  import {project64} from '@deck.gl/core';
+
+  getShaders() {
+    return {vs, fs, modules: [project64]};
+  }
+  ```
+#### CPU Grid layer and Hexagon layer updateTriggers
+
+`getElevationValue`, `getElevationWeight` and `getColorValue`, `getColorWeight` are now compared using `updateTriggers` like other layer [accessors](https://github.com/visgl/deck.gl/blob/master/docs/developer-guide/using-layers.md#accessors). Update them without passing updateTriggers will no longer trigger layer update.
+
+#### Deprecations
+
+IE support is deprecated and will be removed in the next major release.
+
+
+## Upgrading from deck.gl v7.0 to v7.1
+
+#### Breaking Changes
+
+- Fixed a bug where `coordinateOrigin`'s `z` is not applied in `METER_OFFSETS` and `LNGLAT_OFFSETS` coordinate systems.
+- If your application was subclassing `GridLayer`, you should now subclass `CPUGridLayer` instead, and either use it directly, or provide it as the sublayer class for `GridLayer` using `_subLayerProps`:
+
+  ```js
+  class EnhancedCPUGridLayer extends CPUGridLayer {
+  // enhancments
+  }
+
+  // Code initilizing GridLayer
+  const myGridLayer = new GridLayer({
+    // props
+    ...
+    // Override sublayer type for 'CPU'
+    _subLayerProps: {
+      CPU: {
+        type: EnhancedCPUGridLayer
+      }
+    }
+  });
+  ```
+
+#### Deprecations
+
+- `getColor` props in `ColumnLayer` and `H3HexagonLayer` are deprecated. Use `getLineColor` and `getFillColor` instead.
 
 ## Upgrading from deck.gl v6.4 to v7.0
 
@@ -63,22 +395,22 @@ Deprecations:
 
 Breaking Changes:
 
-- `HexagonCellLayer` is removed. Use [ColumnLayer](/docs/layers/column-layer.md) with `diskResolution: 6` instead.
+- `HexagonCellLayer` is removed. Use [ColumnLayer](/docs/api-reference/layers/column-layer.md) with `diskResolution: 6` instead.
 - A bug in projecting elevation was fixed in `HexagonLayer`, `GridLayer` and `GridCellLayer`. The resulting heights of extruded grids/hexagons have changed. You may adjust them to match previous behavior by tweaking `elevationScale`.
 - The following former experimental layers' APIs are redesigned as they graduate to official layers. Refer to their documentations for details:
-  - [BitmapLayer](/docs/layers/column-layer.md)
-  - [SimpleMeshLayer](/docs/layers/simple-mesh-layer.md)
-  - [TileLayer](/docs/layers/tile-layer.md)
-  - [TripsLayer](/docs/layers/trips-layer.md)
+  - [BitmapLayer](/docs/api-reference/layers/column-layer.md)
+  - [SimpleMeshLayer](/docs/api-reference/mesh-layers/simple-mesh-layer.md)
+  - [TileLayer](/docs/api-reference/geo-layers/tile-layer.md)
+  - [TripsLayer](/docs/api-reference/geo-layers/trips-layer.md)
 
 #### Lighting
 
-The old experimental prop `lightSettings` in many 3D layers is no longer supported. The new and improved settings are split into two places: a [material](https://github.com/uber/luma.gl/tree/master/docs/api-reference/core/materials) prop for each 3D layer and a shared set of lights specified by [LightingEffect](/docs/effects/lighting-effect.md) with the [effects prop of Deck](/docs/api-reference/deck.md#effects).
+The old experimental prop `lightSettings` in many 3D layers is no longer supported. The new and improved settings are split into two places: a [material](https://github.com/visgl/luma.gl/tree/master/docs/api-reference/core/materials) prop for each 3D layer and a shared set of lights specified by [LightingEffect](/docs/api-reference/core/lighting-effect.md) with the [effects prop of Deck](/docs/api-reference/core/deck.md#effects).
 Check [Using Lighting](/docs/developer-guide/using-lighting.md) in developer guide for more details.
 
 #### Views
 
-v7.0 includes major bug fixes for [OrbitView](/docs/api-reference/orbit-view.md) and [OrthographicView](/docs/api-reference/orthographic-view.md). Their APIs are also changed for better clarity and consistency.
+v7.0 includes major bug fixes for [OrbitView](/docs/api-reference/core/orbit-view.md) and [OrthographicView](/docs/api-reference/core/orthographic-view.md). Their APIs are also changed for better clarity and consistency.
 
 Breaking Changes:
 
@@ -121,7 +453,7 @@ The experimental `OrthographicView` class has the following breaking changes:
 Deprecations:
 
 - `outline` is deprecated: use `stroked` instead.
-- `strokeWidth` is deprecated: use `getLineWidth` instead. Note that while `strokeWidth` is in pixels, line width is now pecified in meters. The old appearance can be achieved by using `lineWidthMinPixels` and/or `lineWidthMaxPixels`.
+- `strokeWidth` is deprecated: use `getLineWidth` instead. Note that while `strokeWidth` is in pixels, line width is now specified in meters. The old appearance can be achieved by using `lineWidthMinPixels` and/or `lineWidthMaxPixels`.
 - `getColor` is deprecated: use `getFillColor` and `getLineColor` instead.
 
 Breaking changes:
@@ -182,7 +514,7 @@ The default coordinate system `COORDINATE_SYSTEM.LNGLAT` is upgraded to offer hi
 
 #### luma.gl v6.0
 
-deck.gl v6.0 brings in luma.gl v6.0 which is a major release with a few breaking changes. The change that is most likely to affect deck.gl applications is probably that the way the `GL` constant is imported has changed. For details, see to the luma.gl [Upgrade Guide](https://luma.gl/#/documentation/overview/upgrade-guide).
+deck.gl v6.0 brings in luma.gl v6.0 which is a major release with a few breaking changes. The change that is most likely to affect deck.gl applications is probably that the way the `GL` constant is imported has changed. For details, see to the luma.gl [Upgrade Guide](https://luma.gl/docs/overview/upgrade-guide).
 
 
 #### Pixel sizes
@@ -220,7 +552,7 @@ Some previously deprecated `project_` module GLSL functions have now been remove
 
 #### Attribute
 
-`isGeneric` field of attribute object returned by `AttributeManager`'s update callbacks is replaced by `constant`. For more details check [`attribute manager`](/docs/api-reference/attribute-manager.md).
+`isGeneric` field of attribute object returned by `AttributeManager`'s update callbacks is replaced by `constant`. For more details check [`attribute manager`](/docs/api-reference/core/attribute-manager.md).
 
 ## Upgrading from deck.gl v5.2 to v5.3
 
@@ -310,12 +642,12 @@ Following methods and props have been renamed for clarity. The semantics are unc
 
 | Removed uniform       | Comment |
 | ---                   | ---     |
-| renderPickingBuffer   |[picking shader module](https://github.com/uber/luma.gl/tree/5.0-release/src/shadertools/modules/picking)|
-| pickingEnabled        |[picking shader module](https://github.com/uber/luma.gl/tree/5.0-release/src/shadertools/modules/picking)|
-| selectedPickingColor  |[picking shader module](https://github.com/uber/luma.gl/tree/5.0-release/src/shadertools/modules/picking)|
+| renderPickingBuffer   |[picking shader module](https://github.com/visgl/luma.gl/tree/5.0-release/src/shadertools/modules/picking)|
+| pickingEnabled        |[picking shader module](https://github.com/visgl/luma.gl/tree/5.0-release/src/shadertools/modules/picking)|
+| selectedPickingColor  |[picking shader module](https://github.com/visgl/luma.gl/tree/5.0-release/src/shadertools/modules/picking)|
 
 
-The shader uniforms are used for implementing picking in custom shaders, these uniforms are no longer set by the deck.gl. Custom shaders can now use luma.gl [picking shader module](https://github.com/uber/luma.gl/tree/5.0-release/src/shadertools/modules/picking).
+The shader uniforms are used for implementing picking in custom shaders, these uniforms are no longer set by the deck.gl. Custom shaders can now use luma.gl [picking shader module](https://github.com/visgl/luma.gl/tree/5.0-release/src/shadertools/modules/picking).
 
 
 ### Initial WebGL State
@@ -340,7 +672,7 @@ The `assembleShaders` function was moved to luma.gl in v4.1 and is no longer re-
 
 ### Removed Immutable support
 
-`ScatterplotLayer` and `PolygonLayer` supported immutable/ES6 containers using [`get`](https://github.com/uber/deck.gl/blob/5.0-release/src/core/utils/get.js) method, due to performance reasons this support has been dropped.
+`ScatterplotLayer` and `PolygonLayer` supported immutable/ES6 containers using [`get`](https://github.com/visgl/deck.gl/blob/5.0-release/src/core/utils/get.js) method, due to performance reasons this support has been dropped.
 
 
 ## Upgrading from deck.gl v4 to v4.1
@@ -477,7 +809,7 @@ All line based layers (`LineLayer and `ArcLayer` and the `ScatterplotLayer` in o
 
 This particular change was caused by browsers dropping support for this feature ([Chrome](https://bugs.chromium.org/p/chromium/issues/detail?id=60124) and [Firefox](https://bugzilla.mozilla.org/show_bug.cgi?id=634506)).
 
-Also `GL.LINE` mode rendering always had signficant limitations in terms of lack of support for mitering, unreliable support for anti-aliasing and platform dependent line width limits so this should represent an improvement in visual quality and consistency for these layers.
+Also `GL.LINE` mode rendering always had significant limitations in terms of lack of support for mitering, unreliable support for anti-aliasing and platform dependent line width limits so this should represent an improvement in visual quality and consistency for these layers.
 
 #### Removed prop: `Layer.dataIterator`
 

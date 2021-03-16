@@ -17,8 +17,7 @@ const PACKAGE_INFO = require(resolve(PACKAGE_ROOT, 'package.json'));
 function getExternals(packageInfo) {
   let externals = {
     // Hard coded externals
-    'h3-js': 'h3',
-    's2-geometry': 'S2'
+    'h3-js': 'h3'
   };
   const {peerDependencies = {}} = packageInfo;
 
@@ -31,15 +30,7 @@ function getExternals(packageInfo) {
 
   if (externals['@deck.gl/core']) {
     // Do not bundle luma.gl if `core` is peer dependency
-    externals = [
-      externals,
-      (context, request, callback) => {
-        if (/^@?luma\.gl/.test(request)) {
-          return callback(null, 'luma');
-        }
-        return callback();
-      }
-    ];
+    externals['@luma.gl/core'] = 'luma';
   }
 
   return externals;
@@ -55,7 +46,8 @@ const config = {
   output: {
     libraryTarget: 'umd',
     path: PACKAGE_ROOT,
-    filename: 'dist.min.js'
+    filename: 'dist.min.js',
+    library: 'deck'
   },
 
   resolve: {
@@ -68,7 +60,7 @@ const config = {
         // Compile ES2015 using babel
         test: /\.js$/,
         loader: 'babel-loader',
-        include: /src/,
+        include: [/src/, /bundle/, /esm/],
         options: {
           presets: [['@babel/preset-env', {forceAllTransforms: true}]],
           // all of the helpers will reference the module @babel/runtime to avoid duplication
@@ -97,9 +89,7 @@ const config = {
     // ,new (require('webpack-bundle-analyzer').BundleAnalyzerPlugin)()
   ],
 
-  node: {
-    Buffer: false
-  },
+  node: false,
 
   devtool: false
 };

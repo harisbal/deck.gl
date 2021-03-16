@@ -21,8 +21,8 @@
 import test from 'tape-catch';
 import {testLayer, generateLayerTests} from '@deck.gl/test-utils';
 import {S2Layer} from '@deck.gl/geo-layers';
-import {getS2QuadKey} from '@deck.gl/geo-layers/s2-layer/s2-utils';
-import data from 'deck.gl-test/data/s2-sf.json';
+import {getS2QuadKey, getS2Polygon} from '@deck.gl/geo-layers/s2-layer/s2-utils';
+import {s2cells as data} from 'deck.gl-test/data';
 
 import {S2} from 's2-geometry';
 import Long from 'long';
@@ -70,6 +70,39 @@ test('S2Layer#getS2QuadKey', t => {
       t.is(getS2QuadKey(id), key, 'Id to quad key');
       t.is(getS2QuadKey(token), key, 'Token to quad key');
     }
+  }
+
+  t.end();
+});
+
+test('S2Layer#getS2Polygon', t => {
+  const TEST_TOKENS = [
+    '80858004', // face 4
+    '1c', // face 0
+    '2c', // face 1
+    '5b', // face 2
+    '6b', // face 3
+    'ab', // face 5
+    '4/001003',
+    '54', // antimeridian
+    '5c', // antimeridian
+    new Long(0, -2138636288, false),
+    new Long(0, 1832910848, false)
+  ];
+
+  for (const token of TEST_TOKENS) {
+    const polygon = getS2Polygon(token);
+    t.ok(polygon instanceof Float64Array, 'polygon is flat array');
+    t.is((polygon.length / 2 - 1) % 4, 0, 'polygon has 4 sides');
+    t.deepEqual(polygon.slice(0, 2), polygon.slice(-2), 'polygon is closed');
+
+    let minLng = 180;
+    let maxLng = -180;
+    for (let i = 0; i < polygon.length; i += 2) {
+      minLng = Math.min(minLng, polygon[i]);
+      maxLng = Math.max(maxLng, polygon[i]);
+    }
+    t.ok(maxLng - minLng < 180, 'longitude is adjusted cross the antimeridian');
   }
 
   t.end();

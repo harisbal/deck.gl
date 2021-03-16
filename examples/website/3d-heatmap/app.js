@@ -1,18 +1,13 @@
-/* global window */
-import React, {Component} from 'react';
+import React from 'react';
 import {render} from 'react-dom';
 import {StaticMap} from 'react-map-gl';
-import {PhongMaterial} from '@luma.gl/core';
 import {AmbientLight, PointLight, LightingEffect} from '@deck.gl/core';
 import {HexagonLayer} from '@deck.gl/aggregation-layers';
 import DeckGL from '@deck.gl/react';
 
-// Set your mapbox token here
-const MAPBOX_TOKEN = process.env.MapboxAccessToken; // eslint-disable-line
-
 // Source data CSV
 const DATA_URL =
-  'https://raw.githubusercontent.com/uber-common/deck.gl-data/master/examples/3d-heatmap/heatmap-data.csv'; // eslint-disable-line
+  'https://raw.githubusercontent.com/visgl/deck.gl-data/master/examples/3d-heatmap/heatmap-data.csv'; // eslint-disable-line
 
 const ambientLight = new AmbientLight({
   color: [255, 255, 255],
@@ -33,24 +28,26 @@ const pointLight2 = new PointLight({
 
 const lightingEffect = new LightingEffect({ambientLight, pointLight1, pointLight2});
 
-const material = new PhongMaterial({
+const material = {
   ambient: 0.64,
   diffuse: 0.6,
   shininess: 32,
   specularColor: [51, 51, 51]
-});
+};
 
 const INITIAL_VIEW_STATE = {
-  longitude: -1.4157267858730052,
-  latitude: 52.232395363869415,
+  longitude: -1.415727,
+  latitude: 52.232395,
   zoom: 6.6,
   minZoom: 5,
   maxZoom: 15,
   pitch: 40.5,
-  bearing: -27.396674584323023
+  bearing: -27
 };
 
-const colorRange = [
+const MAP_STYLE = 'https://basemaps.cartocdn.com/gl/dark-matter-nolabels-gl-style/style.json';
+
+export const colorRange = [
   [1, 152, 189],
   [73, 227, 206],
   [216, 254, 181],
@@ -59,107 +56,60 @@ const colorRange = [
   [209, 55, 78]
 ];
 
-const elevationScale = {min: 1, max: 50};
+function getTooltip({object}) {
+  if (!object) {
+    return null;
+  }
+  const lat = object.position[1];
+  const lng = object.position[0];
+  const count = object.points.length;
+
+  return `\
+    latitude: ${Number.isFinite(lat) ? lat.toFixed(6) : ''}
+    longitude: ${Number.isFinite(lng) ? lng.toFixed(6) : ''}
+    ${count} Accidents`;
+}
 
 /* eslint-disable react/no-deprecated */
-export class App extends Component {
-  static get defaultColorRange() {
-    return colorRange;
-  }
+export default function App({
+  data,
+  mapStyle = MAP_STYLE,
+  radius = 1000,
+  upperPercentile = 100,
+  coverage = 1
+}) {
+  const layers = [
+    new HexagonLayer({
+      id: 'heatmap',
+      colorRange,
+      coverage,
+      data,
+      elevationRange: [0, 3000],
+      elevationScale: data && data.length ? 50 : 0,
+      extruded: true,
+      getPosition: d => d,
+      pickable: true,
+      radius,
+      upperPercentile,
+      material,
 
-  constructor(props) {
-    super(props);
-    this.state = {
-      elevationScale: elevationScale.min
-    };
+      transitions: {
+        elevationScale: 3000
+      }
+    })
+  ];
 
-    this.startAnimationTimer = null;
-    this.intervalTimer = null;
-
-    this._startAnimate = this._startAnimate.bind(this);
-    this._animateHeight = this._animateHeight.bind(this);
-  }
-
-  componentDidMount() {
-    this._animate();
-  }
-
-  componentWillReceiveProps(nextProps) {
-    if (nextProps.data && this.props.data && nextProps.data.length !== this.props.data.length) {
-      this._animate();
-    }
-  }
-
-  componentWillUnmount() {
-    this._stopAnimate();
-  }
-
-  _animate() {
-    this._stopAnimate();
-
-    // wait 1.5 secs to start animation so that all data are loaded
-    this.startAnimationTimer = window.setTimeout(this._startAnimate, 1500);
-  }
-
-  _startAnimate() {
-    this.intervalTimer = window.setInterval(this._animateHeight, 20);
-  }
-
-  _stopAnimate() {
-    window.clearTimeout(this.startAnimationTimer);
-    window.clearTimeout(this.intervalTimer);
-  }
-
-  _animateHeight() {
-    if (this.state.elevationScale === elevationScale.max) {
-      this._stopAnimate();
-    } else {
-      this.setState({elevationScale: this.state.elevationScale + 1});
-    }
-  }
-
-  _renderLayers() {
-    const {data, radius = 1000, upperPercentile = 100, coverage = 1} = this.props;
-
-    return [
-      new HexagonLayer({
-        id: 'heatmap',
-        colorRange,
-        coverage,
-        data,
-        elevationRange: [0, 3000],
-        elevationScale: this.state.elevationScale,
-        extruded: true,
-        getPosition: d => d,
-        onHover: this.props.onHover,
-        opacity: 1,
-        pickable: Boolean(this.props.onHover),
-        radius,
-        upperPercentile,
-        material
-      })
-    ];
-  }
-
-  render() {
-    const {mapStyle = 'mapbox://styles/mapbox/dark-v9'} = this.props;
-
-    return (
-      <DeckGL
-        layers={this._renderLayers()}
-        effects={[lightingEffect]}
-        initialViewState={INITIAL_VIEW_STATE}
-        controller={true}
-      >
-        <StaticMap
-          reuseMaps
-          mapStyle={mapStyle}
-          preventStyleDiffing={true}
-          mapboxApiAccessToken={MAPBOX_TOKEN}
-        />
-      </DeckGL>
-    );
-  }
+  return (
+    <DeckGL
+      layers={layers}
+      effects={[lightingEffect]}
+      initialViewState={INITIAL_VIEW_STATE}
+      controller={true}
+      getTooltip={getTooltip}
+    >
+      <StaticMap reuseMaps mapStyle={mapStyle} preventStyleDiffing={true} />
+    </DeckGL>
+  );
 }
 
 export function renderToDOM(container) {

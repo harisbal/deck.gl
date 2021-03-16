@@ -19,7 +19,7 @@
 // THE SOFTWARE.
 import {deepEqual} from '../utils/deep-equal';
 
-export class LayerExtension {
+export default class LayerExtension {
   constructor(opts = {}) {
     this.opts = opts;
   }
@@ -63,6 +63,8 @@ export class LayerExtension {
   initializeState(context, extension) {}
 
   updateState(params, extension) {}
+
+  draw(params, extension) {}
 
   finalizeState(extension) {}
 }

@@ -1,6 +1,6 @@
 # Primitive Layers
 
-If you want to draw something completely different and you are comfortable around WebGL, you may consider implementing a new layer by directly extending the [`Layer`](/docs/api-reference/layer.md) class.
+If you want to draw something completely different and you are comfortable around WebGL, you may consider implementing a new layer by directly extending the [`Layer`](/docs/api-reference/core/layer.md) class.
 
 
 ## Implementing the Layer Lifecycle Functions
@@ -10,12 +10,12 @@ To describe how a layer's properties relate to WebGL attributes and uniforms you
 
 ### Initializing Layer
 
-[`initializeState()`](/docs/api-reference/layer.md#-initializestate-) - This is the one method that you must implement to create any WebGL resources you need for rendering your layer.
+[`initializeState()`](/docs/api-reference/core/layer.md#initializestate) - This is the one method that you must implement to create any WebGL resources you need for rendering your layer.
 
 
 #### Creating The Model
 
-A layer should create its model during this phase. A model is a [luma.gl](https://github.com/uber/luma.gl) [Model](https://github.com/uber/luma.gl/blob/master/docs/api-reference/core/model.md) instance that defines what will be drawn to the WebGL context.
+A layer should create its model during this phase. A model is a [luma.gl](https://github.com/visgl/luma.gl) [Model](https://github.com/visgl/luma.gl/blob/8.0-release/docs/api-reference/engine/model.md) instance that defines what will be drawn to the WebGL context.
 
 Most layers are **Single-model layers** - this is the predominant form among all core layers that deck.gl currently provides. In these layers, a single geometry model is created for each layer and saved to `state.model` during initialization. The default implementation of the rest of the lifecycle methods will then look for this model for rendering and picking etc., meaning that you don't have to do anything more to get a working layer.
 
@@ -78,14 +78,14 @@ export default class MyLayer extends Layer {
 }
 ```
 
-It is sometimes desirable to have a single layer render using multiple geometry primitives (e.g both circles and lines, or triangles and textured meshes etc), rather than creating separate layers. The custom [AxesLayer example](https://github.com/uber/deck.gl/tree/master/examples/website/plot/plot-layer/axes-layer.js) uses this technique to share attributes between grids and labels.
+It is sometimes desirable to have a single layer render using multiple geometry primitives (e.g both circles and lines, or triangles and textured meshes etc), rather than creating separate layers. The custom [AxesLayer example](https://github.com/visgl/deck.gl/tree/master/examples/website/plot/plot-layer/axes-layer.js) uses this technique to share attributes between grids and labels.
 
 
 #### Defining Attributes
 
-A layer should also define its attributes during initialization. This allows the [`attribute manager`](/docs/api-reference/attribute-manager.md) to do the heavy lifting for [Attribute Management](/docs/developer-guide/custom-layers/attribute-management.md).
+A layer should also define its attributes during initialization. This allows the [`attribute manager`](/docs/api-reference/core/attribute-manager.md) to do the heavy lifting for [Attribute Management](/docs/developer-guide/custom-layers/attribute-management.md).
 
-Define attributes by calling [`attributeManager.add`](/docs/api-reference/attribute-manager.md#-add-):
+Define attributes by calling [`attributeManager.add`](/docs/api-reference/core/attribute-manager.md#add):
 
 ```js
 initializeState() {
@@ -105,7 +105,7 @@ initializeState() {
 
 ### Handling property updates
 
-[`updateState()`](/docs/api-reference/layer.md#-updatestate-) - This is the method that you may want to implement to handle property changes.
+[`updateState()`](/docs/api-reference/core/layer.md#updatestate) - This is the method that you may want to implement to handle property changes.
 
 The key to writing good, performant deck.gl layers lies in understanding how to minimize updates of any calculated data, such as WebGL.
 
@@ -120,23 +120,23 @@ The ideas used here are very similar to (and directly inspired by) those used in
 
 ### Rendering Layer
 
-[`draw()`](/docs/api-reference/layer.md#-draw-) - If you want to use custom uniforms or settings when drawing, you would typically implement the `draw` method and pass those to your render call. Note that `draw` is called with viewport uniforms that you need to pass to your shader, but you can of course add any layer specific uniforms to that.
+[`draw()`](/docs/api-reference/core/layer.md#draw) - If you want to use custom uniforms or settings when drawing, you would typically implement the `draw` method and pass those to your render call. Note that `draw` is called with viewport uniforms that you need to pass to your shader, but you can of course add any layer specific uniforms to that.
 
 Note: the reason that the supplied uniforms need to be passed on to your shaders is to enable your shader to use deck.gl's GLSL shaderlibs (such as `project` or `project64` etc.). If you don't use these shaderlibs, you would obviously not need to supply these uniforms, but you would have to implement features like cartographic projection etc. on your own.
 
 
 ### Destroying Layer
 
-[`finalizeState()`](/docs/api-reference/layer.md#-finalizestate-) - If implemented, this method is called when your layer state is discarded. This is a good time to destroy non-shared WebGL resources directly, rather than waiting for the garbage collector to do it.
+[`finalizeState()`](/docs/api-reference/core/layer.md#finalizestate) - If implemented, this method is called when your layer state is discarded. This is a good time to destroy non-shared WebGL resources directly, rather than waiting for the garbage collector to do it.
 
 
 ## Handling Coordinate Systems
 
-While you have the freedom to create any type of layer you want, with any type of coordinate system that suits your application, a common characteristic of the layers provided by deck.gl is that they work seamlessly as map overlays, both with positions specified as longitude and latitude scoordinates, as well as with positions specified in meters.
+While you have the freedom to create any type of layer you want, with any type of coordinate system that suits your application, a common characteristic of the layers provided by deck.gl is that they work seamlessly as map overlays, both with positions specified as longitude and latitude coordinates, as well as with positions specified in meters.
 
 ### Making Shaders Work with deck.gl's Coordinate Systems
 
-By supplying the `modules: ['project']` parameter when you create your layer's luma.gl `Model` you get access to deck.gl's [family of GLSL projection methods](/docs/developer-guide/custom-layers/writing-shaders.md#projection-vertex-shader-) that support all three deck.gl projection modes: latlon (default), meters and neutral.
+By supplying the `modules: ['project']` parameter when you create your layer's luma.gl `Model` you get access to deck.gl's [family of GLSL projection methods](/docs/developer-guide/custom-layers/writing-shaders.md#projection) that support all three deck.gl projection modes: latlon (default), meters and neutral.
 
 By always using the following shader functions for handling projections and scaling, a single layer class can support all projection modes for free:
 
@@ -147,7 +147,7 @@ By always using the following shader functions for handling projections and scal
 
 ## Implement Picking
 
-If your layer is instanced (`data` prop is an array and each element is rendered as one primitive), then you may take advantage of the default implementation of the [layer picking methods](/docs/api-reference/layer.md#layer-picking-methods).
+If your layer is instanced (`data` prop is an array and each element is rendered as one primitive), then you may take advantage of the default implementation of the [layer picking methods](/docs/api-reference/core/layer.md#layer-picking-methods).
 
 By default, each layer creates an `instancePickingColors` attribute and automatically calculates it using the length of the `data` array.
 

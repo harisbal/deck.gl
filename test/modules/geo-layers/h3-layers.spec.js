@@ -19,9 +19,8 @@
 // THE SOFTWARE.
 
 import test from 'tape-catch';
-import {h3ToGeoBoundary, h3ToGeo} from 'h3-js';
-import {experimental} from '@deck.gl/core';
-const {count} = experimental;
+import {h3ToGeoBoundary, h3ToGeo, kRing, compact} from 'h3-js';
+import {_count as count, WebMercatorViewport} from '@deck.gl/core';
 import {testLayer, generateLayerTests} from '@deck.gl/test-utils';
 import {H3HexagonLayer, H3ClusterLayer} from '@deck.gl/geo-layers';
 import {scalePolygon, normalizeLongitudes} from '@deck.gl/geo-layers/h3-layers/h3-hexagon-layer';
@@ -50,6 +49,109 @@ test('H3HexagonLayer', t => {
   });
 
   testLayer({Layer: H3HexagonLayer, testCases, onError: t.notOk});
+
+  t.end();
+});
+
+test('H3HexagonLayer#_shouldUseHighPrecision', t => {
+  testLayer({
+    Layer: H3HexagonLayer,
+    onError: t.notOk,
+    testCases: [
+      {
+        props: {
+          data: kRing('882830829bfffff', 4),
+          getHexagon: d => d
+        },
+        onAfterUpdate({layer, subLayer}) {
+          t.equal(
+            layer._shouldUseHighPrecision(),
+            false,
+            'Instanced rendering with standard hexagons'
+          );
+          t.ok(subLayer.constructor.layerName, 'ColumnLayer', 'renders column layer');
+        }
+      },
+      {
+        props: {
+          data: kRing('891c0000003ffff', 4),
+          getHexagon: d => d
+        },
+        onAfterUpdate({layer, subLayer}) {
+          t.equal(
+            layer._shouldUseHighPrecision(),
+            true,
+            'Polygon rendering when input contains a pentagon'
+          );
+          t.ok(subLayer.constructor.layerName, 'PolygonLayer', 'renders polygon layer');
+        }
+      },
+      {
+        props: {
+          data: compact(kRing('882830829bfffff', 6)),
+          getHexagon: d => d
+        },
+        onAfterUpdate({layer, subLayer}) {
+          t.equal(
+            layer._shouldUseHighPrecision(),
+            true,
+            'Polygon rendering when input contains multiple resolutions'
+          );
+          t.ok(subLayer.constructor.layerName, 'PolygonLayer', 'renders polygon layer');
+        }
+      }
+    ]
+  });
+
+  t.end();
+});
+
+test('H3HexagonLayer#viewportUpdate', t => {
+  let vertices = null;
+
+  testLayer({
+    Layer: H3HexagonLayer,
+    onError: t.notOk,
+    testCases: [
+      {
+        props: SAMPLE_PROPS,
+        onAfterUpdate({layer}) {
+          vertices = layer.state.vertices;
+          t.ok(vertices, 'vertices are generated');
+        }
+      },
+      {
+        // viewport does not move
+        viewport: new WebMercatorViewport({longitude: 0, latitude: 0, zoom: 10}),
+        onAfterUpdate({layer}) {
+          t.is(vertices, layer.state.vertices, 'vertices are not changed');
+        }
+      },
+      {
+        // viewport moves a small distance
+        viewport: new WebMercatorViewport({longitude: 0.001, latitude: 0.001, zoom: 10}),
+        onAfterUpdate({layer}) {
+          t.is(vertices, layer.state.vertices, 'vertices are not changed');
+        }
+      },
+      {
+        // far viewport jump, h3Distance fails
+        viewport: new WebMercatorViewport({longitude: -100, latitude: 65, zoom: 10}),
+        onAfterUpdate({layer}) {
+          t.not(vertices, layer.state.vertices, 'vertices are updated');
+          vertices = layer.state.vertices;
+        }
+      },
+      {
+        // viewport moves far enough
+        viewport: new WebMercatorViewport({longitude: -102, latitude: 60, zoom: 10}),
+        onAfterUpdate({layer}) {
+          t.not(vertices, layer.state.vertices, 'vertices are updated');
+          vertices = layer.state.vertices;
+        }
+      }
+    ]
+  });
 
   t.end();
 });

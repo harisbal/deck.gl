@@ -17,8 +17,8 @@
 // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
-import {experimental, fp64LowPart} from '@deck.gl/core';
-const {Tesselator} = experimental;
+import {Tesselator} from '@deck.gl/core';
+import {normalizePath} from './path';
 
 const START_CAP = 1;
 const END_CAP = 2;
@@ -27,20 +27,36 @@ const INVALID = 4;
 // This class is set up to allow querying one attribute at a time
 // the way the AttributeManager expects it
 export default class PathTesselator extends Tesselator {
-  constructor({data, getGeometry, positionFormat, fp64}) {
+  constructor(opts) {
     super({
-      data,
-      getGeometry,
-      fp64,
-      positionFormat,
+      ...opts,
       attributes: {
-        startPositions: {size: 3, padding: 3},
-        endPositions: {size: 3, padding: 3},
-        segmentTypes: {size: 1, type: Uint8ClampedArray},
-        startPositions64XyLow: {size: 2, padding: 2, fp64Only: true},
-        endPositions64XyLow: {size: 2, padding: 2, fp64Only: true}
+        // Padding covers shaderAttributes for last segment in largest case fp64
+        // additional vertex + hi & low parts, 3 * 6
+        positions: {
+          size: 3,
+          padding: 18,
+          initialize: true,
+          type: opts.fp64 ? Float64Array : Float32Array
+        },
+        segmentTypes: {size: 1, type: Uint8ClampedArray}
       }
     });
+  }
+
+  getGeometryFromBuffer(buffer) {
+    if (this.normalize) {
+      return super.getGeometryFromBuffer(buffer);
+    }
+    // we don't need to read the positions if no normalization
+    return () => null;
+  }
+
+  normalizeGeometry(path) {
+    if (this.normalize) {
+      return normalizePath(path, this.positionSize, this.opts.resolution, this.opts.wrapLongitude);
+    }
+    return path;
   }
 
   /* Getters */
@@ -50,116 +66,109 @@ export default class PathTesselator extends Tesselator {
 
   /* Implement base Tesselator interface */
   getGeometrySize(path) {
+    if (Array.isArray(path[0])) {
+      let size = 0;
+      for (const subPath of path) {
+        size += this.getGeometrySize(subPath);
+      }
+      return size;
+    }
     const numPoints = this.getPathLength(path);
     if (numPoints < 2) {
       // invalid path
       return 0;
     }
-    return this.isClosed(path) ? numPoints + 1 : Math.max(0, numPoints - 1);
+    if (this.isClosed(path)) {
+      // minimum 3 vertices
+      return numPoints < 3 ? 0 : numPoints + 2;
+    }
+    return numPoints;
   }
 
-  /* eslint-disable max-statements, complexity */
   updateGeometryAttributes(path, context) {
-    const {
-      attributes: {
-        startPositions,
-        endPositions,
-        startPositions64XyLow,
-        endPositions64XyLow,
-        segmentTypes
-      },
-      fp64
-    } = this;
-
-    const {geometrySize} = context;
-    if (geometrySize === 0) {
+    if (context.geometrySize === 0) {
       return;
     }
-    const isPathClosed = this.isClosed(path);
-
-    let startPoint;
-    let endPoint;
-
-    // startPositions   --  A0  B0 B1 B2 B3 B0 B1
-    // endPositions         A1  B1 B2 B3 B0 B1 B2  --
-    // segmentTypes         3   4  0  0  0  0  4
-    for (let i = context.vertexStart, ptIndex = 0; ptIndex < geometrySize; i++, ptIndex++) {
-      startPoint = endPoint || this.getPointOnPath(path, 0);
-      endPoint = this.getPointOnPath(path, ptIndex + 1);
-
-      segmentTypes[i] = 0;
-      if (ptIndex === 0) {
-        if (isPathClosed) {
-          segmentTypes[i] += INVALID;
-        } else {
-          segmentTypes[i] += START_CAP;
-        }
+    if (path && Array.isArray(path[0])) {
+      for (const subPath of path) {
+        const geometrySize = this.getGeometrySize(subPath);
+        context.geometrySize = geometrySize;
+        this.updateGeometryAttributes(subPath, context);
+        context.vertexStart += geometrySize;
       }
-      if (ptIndex === geometrySize - 1) {
-        if (isPathClosed) {
-          segmentTypes[i] += INVALID;
-        } else {
-          segmentTypes[i] += END_CAP;
-        }
-      }
-
-      startPositions[i * 3 + 3] = startPoint[0];
-      startPositions[i * 3 + 4] = startPoint[1];
-      startPositions[i * 3 + 5] = startPoint[2] || 0;
-
-      endPositions[i * 3] = endPoint[0];
-      endPositions[i * 3 + 1] = endPoint[1];
-      endPositions[i * 3 + 2] = endPoint[2] || 0;
-
-      if (fp64) {
-        startPositions64XyLow[i * 2 + 2] = fp64LowPart(startPoint[0]);
-        startPositions64XyLow[i * 2 + 3] = fp64LowPart(startPoint[1]);
-        endPositions64XyLow[i * 2] = fp64LowPart(endPoint[0]);
-        endPositions64XyLow[i * 2 + 1] = fp64LowPart(endPoint[1]);
-      }
+    } else {
+      this._updateSegmentTypes(path, context);
+      this._updatePositions(path, context);
     }
   }
-  /* eslint-enable max-statements, complexity */
+
+  _updateSegmentTypes(path, context) {
+    const {segmentTypes} = this.attributes;
+    const isPathClosed = this.isClosed(path);
+    const {vertexStart, geometrySize} = context;
+
+    // positions   --  A0 A1 B0 B1 B2 B3 B0 B1 B2 --
+    // segmentTypes     3  4  4  0  0  0  0  4  4
+    segmentTypes.fill(0, vertexStart, vertexStart + geometrySize);
+    if (isPathClosed) {
+      segmentTypes[vertexStart] = INVALID;
+      segmentTypes[vertexStart + geometrySize - 2] = INVALID;
+    } else {
+      segmentTypes[vertexStart] += START_CAP;
+      segmentTypes[vertexStart + geometrySize - 2] += END_CAP;
+    }
+    segmentTypes[vertexStart + geometrySize - 1] = INVALID;
+  }
+
+  _updatePositions(path, context) {
+    const {positions} = this.attributes;
+    if (!positions) {
+      return;
+    }
+    const {vertexStart, geometrySize} = context;
+    const p = new Array(3);
+
+    // positions   --  A0 A1 B0 B1 B2 B3 B0 B1 B2 --
+    // segmentTypes     3  4  4  0  0  0  0  4  4
+    for (let i = vertexStart, ptIndex = 0; ptIndex < geometrySize; i++, ptIndex++) {
+      this.getPointOnPath(path, ptIndex, p);
+      positions[i * 3] = p[0];
+      positions[i * 3 + 1] = p[1];
+      positions[i * 3 + 2] = p[2];
+    }
+  }
 
   /* Utilities */
+  // Returns the number of points in the path
   getPathLength(path) {
-    if (Number.isFinite(path[0])) {
-      // flat format
-      return path.length / this.positionSize;
-    }
-    return path.length;
+    return path.length / this.positionSize;
   }
 
-  getPointOnPath(path, index) {
-    if (Number.isFinite(path[0])) {
-      // flat format
-      const {positionSize} = this;
-      if (index * positionSize >= path.length) {
-        // loop
-        index += 1 - path.length / positionSize;
-      }
-      // TODO - avoid creating new arrays when using binary
-      return [
-        path[index * positionSize],
-        path[index * positionSize + 1],
-        positionSize === 3 ? path[index * positionSize + 2] : 0
-      ];
-    }
-    if (index >= path.length) {
+  // Returns a point on the path at the specified index
+  getPointOnPath(path, index, target = []) {
+    const {positionSize} = this;
+    if (index * positionSize >= path.length) {
       // loop
-      index += 1 - path.length;
+      index += 1 - path.length / positionSize;
     }
-    return path[index];
+    const i = index * positionSize;
+    target[0] = path[i];
+    target[1] = path[i + 1];
+    target[2] = (positionSize === 3 && path[i + 2]) || 0;
+    return target;
   }
 
+  // Returns true if the first and last points are identical
   isClosed(path) {
-    const numPoints = this.getPathLength(path);
-    const firstPoint = this.getPointOnPath(path, 0);
-    const lastPoint = this.getPointOnPath(path, numPoints - 1);
+    if (!this.normalize) {
+      return this.opts.loop;
+    }
+    const {positionSize} = this;
+    const lastPointIndex = path.length - positionSize;
     return (
-      firstPoint[0] === lastPoint[0] &&
-      firstPoint[1] === lastPoint[1] &&
-      firstPoint[2] === lastPoint[2]
+      path[0] === path[lastPointIndex] &&
+      path[1] === path[lastPointIndex + 1] &&
+      (positionSize === 2 || path[2] === path[lastPointIndex + 2])
     );
   }
 }

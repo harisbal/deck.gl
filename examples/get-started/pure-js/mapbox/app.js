@@ -14,12 +14,11 @@ const INITIAL_VIEW_STATE = {
   pitch: 30
 };
 
-// Set your mapbox token here
-mapboxgl.accessToken = process.env.MapboxAccessToken; // eslint-disable-line
+const MAP_STYLE = 'https://basemaps.cartocdn.com/gl/positron-nolabels-gl-style/style.json';
 
 const map = new mapboxgl.Map({
   container: 'map',
-  style: 'mapbox://styles/mapbox/light-v9',
+  style: MAP_STYLE,
   // Note: deck.gl will be in charge of interaction and event handling
   interactive: false,
   center: [INITIAL_VIEW_STATE.longitude, INITIAL_VIEW_STATE.latitude],
@@ -49,7 +48,6 @@ export const deck = new Deck({
       // Styles
       filled: true,
       pointRadiusMinPixels: 2,
-      opacity: 1,
       pointRadiusScale: 2000,
       getRadius: f => 11 - f.properties.scalerank,
       getFillColor: [200, 0, 80, 180],

@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-import {CompositeLayer, log, createIterable} from '@deck.gl/core';
+import {CompositeLayer, createIterable} from '@deck.gl/core';
 import MultiIconLayer from './multi-icon-layer/multi-icon-layer';
 import FontAtlasManager, {
   DEFAULT_CHAR_SET,
@@ -29,14 +29,17 @@ import FontAtlasManager, {
   DEFAULT_RADIUS,
   DEFAULT_CUTOFF
 } from './font-atlas-manager';
-import {replaceInRange} from '../utils';
+import {transformParagraph, getTextFromBuffer} from './utils';
+
+import TextBackgroundLayer from './text-background-layer/text-background-layer';
 
 const DEFAULT_FONT_SETTINGS = {
   fontSize: DEFAULT_FONT_SIZE,
   buffer: DEFAULT_BUFFER,
   sdf: false,
   radius: DEFAULT_RADIUS,
-  cutoff: DEFAULT_CUTOFF
+  cutoff: DEFAULT_CUTOFF,
+  smoothing: 0.1
 };
 
 const TEXT_ANCHOR = {
@@ -53,7 +56,8 @@ const ALIGNMENT_BASELINE = {
 
 const DEFAULT_COLOR = [0, 0, 0, 255];
 
-const MISSING_CHAR_WIDTH = 32;
+const DEFAULT_LINE_HEIGHT = 1.0;
+
 const FONT_SETTINGS_PROPS = ['fontSize', 'buffer', 'sdf', 'radius', 'cutoff'];
 
 const defaultProps = {
@@ -63,10 +67,23 @@ const defaultProps = {
   sizeMinPixels: 0,
   sizeMaxPixels: Number.MAX_SAFE_INTEGER,
 
+  background: false,
+  getBackgroundColor: {type: 'accessor', value: [255, 255, 255, 255]},
+  getBorderColor: {type: 'accessor', value: DEFAULT_COLOR},
+  getBorderWidth: {type: 'accessor', value: 0},
+  backgroundPadding: {type: 'array', value: [0, 0]},
+
   characterSet: DEFAULT_CHAR_SET,
   fontFamily: DEFAULT_FONT_FAMILY,
   fontWeight: DEFAULT_FONT_WEIGHT,
+  lineHeight: DEFAULT_LINE_HEIGHT,
+  outlineWidth: {type: 'number', value: 0, min: 0},
+  outlineColor: {type: 'color', value: DEFAULT_COLOR},
   fontSettings: {},
+
+  // auto wrapping options
+  wordBreak: 'break-word',
+  maxWidth: {type: 'number', value: -1},
 
   getText: {type: 'accessor', value: x => x.text},
   getPosition: {type: 'accessor', value: x => x.position},
@@ -75,78 +92,73 @@ const defaultProps = {
   getAngle: {type: 'accessor', value: 0},
   getTextAnchor: {type: 'accessor', value: 'middle'},
   getAlignmentBaseline: {type: 'accessor', value: 'center'},
-  getPixelOffset: {type: 'accessor', value: [0, 0]}
+  getPixelOffset: {type: 'accessor', value: [0, 0]},
+
+  // deprecated
+  backgroundColor: {deprecatedFor: ['background', 'getBackgroundColor']}
 };
 
 export default class TextLayer extends CompositeLayer {
   initializeState() {
     this.state = {
-      fontAtlasManager: new FontAtlasManager(this.context.gl)
+      styleVersion: 0,
+      fontAtlasManager: new FontAtlasManager()
     };
   }
 
+  // eslint-disable-next-line complexity
   updateState({props, oldProps, changeFlags}) {
-    const fontChanged = this.fontChanged(oldProps, props);
+    const fontChanged = this._fontChanged(oldProps, props);
+
     if (fontChanged) {
-      this.updateFontAtlas({oldProps, props});
+      this._updateFontAtlas(oldProps, props);
     }
+
+    const styleChanged =
+      fontChanged ||
+      props.lineHeight !== oldProps.lineHeight ||
+      props.wordBreak !== oldProps.wordBreak ||
+      props.maxWidth !== oldProps.maxWidth;
 
     const textChanged =
       changeFlags.dataChanged ||
-      fontChanged ||
       (changeFlags.updateTriggersChanged &&
         (changeFlags.updateTriggersChanged.all || changeFlags.updateTriggersChanged.getText));
 
-    if (textChanged && Array.isArray(changeFlags.dataChanged)) {
-      const data = this.state.data.slice();
-      const dataDiff = changeFlags.dataChanged.map(dataRange =>
-        replaceInRange({
-          data,
-          getIndex: p => p.__source.index,
-          dataRange,
-          replace: this.transformStringToLetters(dataRange)
-        })
-      );
-      this.setState({data, dataDiff});
-    } else if (textChanged) {
+    if (textChanged) {
+      this._updateText();
+    }
+    if (styleChanged) {
       this.setState({
-        data: this.transformStringToLetters(),
-        dataDiff: null
+        styleVersion: this.state.styleVersion + 1
       });
     }
   }
 
-  finalizeState() {
-    super.finalizeState();
-    // Release resources held by the font atlas manager
-    this.state.fontAtlasManager.finalize();
+  getPickingInfo({info}) {
+    // because `TextLayer` assign the same pickingInfoIndex for one text label,
+    // here info.index refers the index of text label in props.data
+    info.object = info.index >= 0 ? this.props.data[info.index] : null;
+    return info;
   }
 
-  updateFontAtlas({oldProps, props}) {
+  _updateFontAtlas(oldProps, props) {
     const {characterSet, fontSettings, fontFamily, fontWeight} = props;
 
     // generate test characterSet
-    const fontAtlasManager = this.state.fontAtlasManager;
-    fontAtlasManager.setProps(
-      Object.assign({}, DEFAULT_FONT_SETTINGS, fontSettings, {
-        characterSet,
-        fontFamily,
-        fontWeight
-      })
-    );
-
-    const {scale, texture, mapping} = fontAtlasManager;
-
-    this.setState({
-      scale,
-      iconAtlas: texture,
-      iconMapping: mapping
+    const {fontAtlasManager} = this.state;
+    fontAtlasManager.setProps({
+      ...DEFAULT_FONT_SETTINGS,
+      ...fontSettings,
+      characterSet,
+      fontFamily,
+      fontWeight
     });
 
     this.setNeedsRedraw(true);
   }
 
-  fontChanged(oldProps, props) {
+  _fontChanged(oldProps, props) {
     if (
       oldProps.fontFamily !== props.fontFamily ||
       oldProps.characterSet !== props.characterSet ||
@@ -165,98 +177,128 @@ export default class TextLayer extends CompositeLayer {
     return FONT_SETTINGS_PROPS.some(prop => oldFontSettings[prop] !== fontSettings[prop]);
   }
 
-  getPickingInfo({info}) {
-    // because `TextLayer` assign the same pickingInfoIndex for one text label,
-    // here info.index refers the index of text label in props.data
-    return Object.assign(info, {
-      // override object with original data
-      object: info.index >= 0 ? this.props.data[info.index] : null
-    });
-  }
+  // Text strings are variable width objects
+  // Returns the index at the start of each string (every character is rendered by one instance)
+  _updateText() {
+    const {data} = this.props;
+    const textBuffer = data.attributes && data.attributes.getText;
+    let {getText} = this.props;
+    let {startIndices} = data;
+    let numInstances;
 
-  /* eslint-disable no-loop-func */
-  transformStringToLetters(dataRange = {}) {
-    const {data, getText} = this.props;
-    const {iconMapping} = this.state;
-    const {startRow, endRow} = dataRange;
+    if (textBuffer && startIndices) {
+      const {texts, characterCount} = getTextFromBuffer({
+        ...(ArrayBuffer.isView(textBuffer) ? {value: textBuffer} : textBuffer),
+        length: data.length,
+        startIndices
+      });
+      numInstances = characterCount;
+      getText = (_, {index}) => texts[index];
+    } else {
+      const {iterable, objectInfo} = createIterable(data);
+      startIndices = [0];
+      numInstances = 0;
 
-    const transformedData = [];
-
-    const {iterable, objectInfo} = createIterable(data, startRow, endRow);
-    for (const object of iterable) {
-      objectInfo.index++;
-      const text = getText(object, objectInfo);
-      if (text) {
-        const letters = Array.from(text);
-        const offsets = [0];
-        let offsetLeft = 0;
-
-        letters.forEach((letter, i) => {
-          const datum = this.getSubLayerRow(
-            {
-              text: letter,
-              index: i,
-              offsets,
-              len: text.length
-            },
-            object,
-            objectInfo.index
-          );
-
-          const frame = iconMapping[letter];
-          if (frame) {
-            offsetLeft += frame.width;
-          } else {
-            log.warn(`Missing character: ${letter}`)();
-            offsetLeft += MISSING_CHAR_WIDTH;
-          }
-          offsets.push(offsetLeft);
-          transformedData.push(datum);
-        });
+      for (const object of iterable) {
+        objectInfo.index++;
+        const text = getText(object, objectInfo) || '';
+        // When dealing with double-length unicode characters, `str.length` is incorrect
+        numInstances += Array.from(text).length;
+        startIndices.push(numInstances);
       }
     }
 
-    return transformedData;
-  }
-  /* eslint-enable no-loop-func */
-
-  getLetterOffset(datum) {
-    return datum.offsets[datum.index];
+    this.setState({getText, startIndices, numInstances});
   }
 
-  getTextLength(datum) {
-    return datum.offsets[datum.offsets.length - 1];
+  // Returns the x, y offsets of each character in a text string
+  getBoundingRect(object, objectInfo) {
+    const iconMapping = this.state.fontAtlasManager.mapping;
+    const {getText} = this.state;
+    const {wordBreak, maxWidth, lineHeight, getTextAnchor, getAlignmentBaseline} = this.props;
+
+    const paragraph = getText(object, objectInfo) || '';
+    const {
+      size: [width, height]
+    } = transformParagraph(paragraph, lineHeight, wordBreak, maxWidth, iconMapping);
+    const anchorX =
+      TEXT_ANCHOR[
+        typeof getTextAnchor === 'function' ? getTextAnchor(object, objectInfo) : getTextAnchor
+      ];
+    const anchorY =
+      ALIGNMENT_BASELINE[
+        typeof getAlignmentBaseline === 'function'
+          ? getAlignmentBaseline(object, objectInfo)
+          : getAlignmentBaseline
+      ];
+
+    return [((anchorX - 1) * width) / 2, ((anchorY - 1) * height) / 2, width, height];
   }
 
-  getAnchorXFromTextAnchor(getTextAnchor) {
-    if (typeof getTextAnchor === 'function') {
-      getTextAnchor = this.getSubLayerAccessor(getTextAnchor);
-      return x => TEXT_ANCHOR[getTextAnchor(x)] || 0;
+  // Returns the x, y, w, h of each text object
+  getIconOffsets(object, objectInfo) {
+    const iconMapping = this.state.fontAtlasManager.mapping;
+    const {getText} = this.state;
+    const {wordBreak, maxWidth, lineHeight, getTextAnchor, getAlignmentBaseline} = this.props;
+
+    const paragraph = getText(object, objectInfo) || '';
+    const {
+      x,
+      y,
+      rowWidth,
+      size: [width, height]
+    } = transformParagraph(paragraph, lineHeight, wordBreak, maxWidth, iconMapping);
+    const anchorX =
+      TEXT_ANCHOR[
+        typeof getTextAnchor === 'function' ? getTextAnchor(object, objectInfo) : getTextAnchor
+      ];
+    const anchorY =
+      ALIGNMENT_BASELINE[
+        typeof getAlignmentBaseline === 'function'
+          ? getAlignmentBaseline(object, objectInfo)
+          : getAlignmentBaseline
+      ];
+
+    const numCharacters = x.length;
+    const offsets = new Array(numCharacters * 2);
+    let index = 0;
+
+    for (let i = 0; i < numCharacters; i++) {
+      // For a multi-line object, offset in x-direction needs consider
+      // the row offset in the paragraph and the object offset in the row
+      const rowOffset = ((1 - anchorX) * (width - rowWidth[i])) / 2;
+      offsets[index++] = ((anchorX - 1) * width) / 2 + rowOffset + x[i];
+      offsets[index++] = ((anchorY - 1) * height) / 2 + y[i];
     }
-    return () => TEXT_ANCHOR[getTextAnchor] || 0;
-  }
-
-  getAnchorYFromAlignmentBaseline(getAlignmentBaseline) {
-    if (typeof getAlignmentBaseline === 'function') {
-      getAlignmentBaseline = this.getSubLayerAccessor(getAlignmentBaseline);
-      return x => TEXT_ANCHOR[getAlignmentBaseline(x)] || 0;
-    }
-    return () => ALIGNMENT_BASELINE[getAlignmentBaseline] || 0;
+    return offsets;
   }
 
   renderLayers() {
-    const {data, dataDiff, scale, iconAtlas, iconMapping} = this.state;
+    const {
+      startIndices,
+      numInstances,
+      getText,
+      fontAtlasManager: {scale, texture, mapping},
+      styleVersion
+    } = this.state;
 
     const {
+      data,
+      _dataDiff,
       getPosition,
       getColor,
       getSize,
       getAngle,
-      getTextAnchor,
-      getAlignmentBaseline,
       getPixelOffset,
+      getBackgroundColor,
+      getBorderColor,
+      getBorderWidth,
+      backgroundPadding,
+      background,
       billboard,
-      sdf,
+      fontSettings,
+      outlineWidth,
+      outlineColor,
       sizeScale,
       sizeUnits,
       sizeMinPixels,
@@ -265,58 +307,126 @@ export default class TextLayer extends CompositeLayer {
       updateTriggers
     } = this.props;
 
-    const SubLayerClass = this.getSubLayerClass('characters', MultiIconLayer);
+    const CharactersLayerClass = this.getSubLayerClass('characters', MultiIconLayer);
+    const BackgroundLayerClass = this.getSubLayerClass('background', TextBackgroundLayer);
 
-    return new SubLayerClass(
-      {
-        sdf,
-        iconAtlas,
-        iconMapping,
+    return [
+      background &&
+        new BackgroundLayerClass(
+          {
+            // background props
+            getFillColor: getBackgroundColor,
+            getLineColor: getBorderColor,
+            getLineWidth: getBorderWidth,
+            padding: backgroundPadding,
 
-        _dataDiff: dataDiff && (() => dataDiff),
+            // props shared with characters layer
+            getPosition,
+            getSize,
+            getAngle,
+            getPixelOffset,
+            billboard,
+            sizeScale: sizeScale / this.state.fontAtlasManager.props.fontSize,
+            sizeUnits,
+            sizeMinPixels,
+            sizeMaxPixels,
 
-        getPosition: this.getSubLayerAccessor(getPosition),
-        getColor: this.getSubLayerAccessor(getColor),
-        getSize: this.getSubLayerAccessor(getSize),
-        getAngle: this.getSubLayerAccessor(getAngle),
-        getAnchorX: this.getAnchorXFromTextAnchor(getTextAnchor),
-        getAnchorY: this.getAnchorYFromAlignmentBaseline(getAlignmentBaseline),
-        getPixelOffset: this.getSubLayerAccessor(getPixelOffset),
-        getPickingIndex: obj => obj.__source.index,
-        billboard,
-        sizeScale: sizeScale * scale,
-        sizeUnits,
-        sizeMinPixels: sizeMinPixels * scale,
-        sizeMaxPixels: sizeMaxPixels * scale,
+            transitions: transitions && {
+              getPosition: transitions.getPosition,
+              getAngle: transitions.getAngle,
+              getSize: transitions.getSize,
+              getFillColor: transitions.getBackgroundColor,
+              getLineColor: transitions.getBorderColor,
+              getLineWidth: transitions.getBorderWidth,
+              getPixelOffset: transitions.getPixelOffset
+            }
+          },
+          this.getSubLayerProps({
+            id: 'background',
+            updateTriggers: {
+              getPosition: updateTriggers.getPosition,
+              getAngle: updateTriggers.getAngle,
+              getSize: updateTriggers.getSize,
+              getFillColor: updateTriggers.getBackgroundColor,
+              getLineColor: updateTriggers.getBorderColor,
+              getLineWidth: updateTriggers.getBorderWidth,
+              getPixelOffset: updateTriggers.getPixelOffset,
+              getBoundingRect: {
+                getText: updateTriggers.getText,
+                getTextAnchor: updateTriggers.getTextAnchor,
+                getAlignmentBaseline: updateTriggers.getAlignmentBaseline,
+                styleVersion
+              }
+            }
+          }),
+          {
+            data: data.attributes
+              ? {length: data.length, attributes: data.attributes.background || {}}
+              : data,
+            _dataDiff,
+            // Maintain the same background behavior as <=8.3. Remove in v9?
+            autoHighlight: false,
+            getBoundingRect: this.getBoundingRect.bind(this)
+          }
+        ),
+      new CharactersLayerClass(
+        {
+          sdf: fontSettings.sdf,
+          smoothing: Number.isFinite(fontSettings.smoothing)
+            ? fontSettings.smoothing
+            : DEFAULT_FONT_SETTINGS.smoothing,
+          outlineWidth,
+          outlineColor,
+          iconAtlas: texture,
+          iconMapping: mapping,
 
-        transitions: transitions && {
-          getPosition: transitions.getPosition,
-          getAngle: transitions.getAngle,
-          getColor: transitions.getColor,
-          getSize: transitions.getSize,
-          getPixelOffset: updateTriggers.getPixelOffset
+          getPosition,
+          getColor,
+          getSize,
+          getAngle,
+          getPixelOffset,
+
+          billboard,
+          sizeScale: sizeScale * scale,
+          sizeUnits,
+          sizeMinPixels: sizeMinPixels * scale,
+          sizeMaxPixels: sizeMaxPixels * scale,
+
+          transitions: transitions && {
+            getPosition: transitions.getPosition,
+            getAngle: transitions.getAngle,
+            getColor: transitions.getColor,
+            getSize: transitions.getSize,
+            getPixelOffset: transitions.getPixelOffset
+          }
+        },
+        this.getSubLayerProps({
+          id: 'characters',
+          updateTriggers: {
+            getIcon: updateTriggers.getText,
+            getPosition: updateTriggers.getPosition,
+            getAngle: updateTriggers.getAngle,
+            getColor: updateTriggers.getColor,
+            getSize: updateTriggers.getSize,
+            getPixelOffset: updateTriggers.getPixelOffset,
+            getIconOffsets: {
+              getText: updateTriggers.getText,
+              getTextAnchor: updateTriggers.getTextAnchor,
+              getAlignmentBaseline: updateTriggers.getAlignmentBaseline,
+              styleVersion
+            }
+          }
+        }),
+        {
+          data,
+          _dataDiff,
+          startIndices,
+          numInstances,
+          getIconOffsets: this.getIconOffsets.bind(this),
+          getIcon: getText
         }
-      },
-      this.getSubLayerProps({
-        id: 'characters',
-        updateTriggers: {
-          getPosition: updateTriggers.getPosition,
-          getAngle: updateTriggers.getAngle,
-          getColor: updateTriggers.getColor,
-          getSize: updateTriggers.getSize,
-          getPixelOffset: updateTriggers.getPixelOffset,
-          getAnchorX: updateTriggers.getTextAnchor,
-          getAnchorY: updateTriggers.getAlignmentBaseline
-        }
-      }),
-      {
-        data,
-
-        getIcon: d => d.text,
-        getShiftInQueue: d => this.getLetterOffset(d),
-        getLengthOfQueue: d => this.getTextLength(d)
-      }
-    );
+      )
+    ];
   }
 }
 

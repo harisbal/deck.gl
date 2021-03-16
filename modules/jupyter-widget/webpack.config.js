@@ -1,72 +1,72 @@
-// File leans heavily on configuration in
-// https://github.com/jupyter-widgets/widget-ts-cookiecutter/blob/master/%7B%7Bcookiecutter.github_project_name%7D%7D/webpack.config.js
-const path = require('path');
-const version = require('./package.json').version;
+const {resolve} = require('path');
+const webpack = require('webpack');
+
+const ALIASES = require('ocular-dev-tools/config/ocular.config')({
+  aliasMode: 'src',
+  root: resolve(__dirname, '../..')
+}).aliases;
+
+const EXTERNALS = ['@jupyter-widgets/base'];
+const PACKAGE_ROOT = resolve('.');
+const PACKAGE_INFO = require(resolve(PACKAGE_ROOT, 'package.json'));
 
 const rules = [
   {
-    test: /\.css$/,
-    use: ['style-loader', 'css-loader']
-  },
-  {
-    test: /\.(jpg|png|gif|svg)$/,
-    use: ['file-loader']
+    // Compile ES2015 using babel
+    test: /\.js$/,
+    loader: 'babel-loader',
+    include: /src/,
+    options: {
+      babelrc: false,
+      presets: [
+        [
+          '@babel/preset-env',
+          {
+            targets: ['>0.2%', 'not ie 11', 'not dead', 'not chrome 49']
+          }
+        ]
+      ],
+      // all of the helpers will reference the module @babel/runtime to avoid duplication
+      // across the compiled output.
+      plugins: [
+        '@babel/transform-runtime',
+        'inline-webgl-constants',
+        ['remove-glsl-comments', {patterns: ['**/*.glsl.js']}]
+      ]
+    }
   }
 ];
 
-// Packages that shouldn't be bundled but loaded at runtime
-const externals = ['@jupyter-widgets/base'];
-
-const resolve = {
-  extensions: ['.webpack.js', '.web.js', '.js']
-};
-
-module.exports = [
+const config = [
   {
     /**
-     * Notebook extension
+     * Embeddable @deck.gl/jupyter-widget bundle
      *
-     * This bundle only contains the part of the JavaScript that is run on load of
-     * the notebook.
+     * Used in JupyterLab (whose entry point is at plugin.js) and Jupyter Notebook alike.
+     *
      */
-    entry: './src/nb_extension.js',
-    output: {
-      filename: 'index.js',
-      path: path.resolve(__dirname, 'dist', 'pydeck_embeddable'),
-      libraryTarget: 'amd'
-    },
-    devtool: 'source-map',
-    module: {
-      rules
-    },
-    externals,
-    resolve
-  },
-
-  /**
-   * Embeddable @deck.gl/jupyter-widget bundle
-   *
-   * This bundle is almost identical to the notebook extension bundle. The only
-   * difference is in the configuration of the webpack public path for the
-   * static assets.
-   *
-   * The target bundle is always `dist/index.js`, which is the path required by
-   * the custom widget embedder.
-   */
-  {
     entry: './src/index.js',
+    resolve: {
+      alias: ALIASES
+    },
     output: {
       filename: 'index.js',
-      path: path.resolve(__dirname, 'dist'),
-      libraryTarget: 'amd',
-      library: '@deck.gl/jupyter-widget',
-      publicPath: `https://unpkg.com/deck.gl@jupyter-widget@${version}/dist/`
+      path: resolve(__dirname, 'dist'),
+      libraryTarget: 'umd'
     },
     devtool: 'source-map',
     module: {
       rules
     },
-    externals,
-    resolve
+    externals: EXTERNALS,
+    plugins: [
+      // Uncomment for bundle size debug
+      // new (require('webpack-bundle-analyzer')).BundleAnalyzerPlugin()
+      new webpack.DefinePlugin({
+        __VERSION__: JSON.stringify(PACKAGE_INFO.version)
+      })
+    ]
   }
 ];
+
+module.exports = config;

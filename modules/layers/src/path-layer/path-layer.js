@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-import {Layer} from '@deck.gl/core';
+import {Layer, project32, picking, log} from '@deck.gl/core';
 import GL from '@luma.gl/constants';
 import {Model, Geometry} from '@luma.gl/core';
 
@@ -34,15 +34,19 @@ const defaultProps = {
   widthScale: {type: 'number', min: 0, value: 1}, // stroke width in meters
   widthMinPixels: {type: 'number', min: 0, value: 0}, //  min stroke width in pixels
   widthMaxPixels: {type: 'number', min: 0, value: Number.MAX_SAFE_INTEGER}, // max stroke width in pixels
-  rounded: false,
+  jointRounded: false,
+  capRounded: false,
   miterLimit: {type: 'number', min: 0, value: 4},
-  dashJustified: false,
   billboard: false,
+  // `loop` or `open`
+  _pathType: null,
 
   getPath: {type: 'accessor', value: object => object.path},
   getColor: {type: 'accessor', value: DEFAULT_COLOR},
   getWidth: {type: 'accessor', value: 1},
-  getDashArray: {type: 'accessor', value: [0, 0]}
+
+  // deprecated props
+  rounded: {deprecatedFor: ['jointRounded', 'capRounded']}
 };
 
 const ATTRIBUTE_TRANSITION = {
@@ -53,7 +57,11 @@ const ATTRIBUTE_TRANSITION = {
 
 export default class PathLayer extends Layer {
   getShaders() {
-    return super.getShaders({vs, fs, modules: ['project32', 'picking']}); // 'project' module added by default.
+    return super.getShaders({vs, fs, modules: [project32, picking]}); // 'project' module added by default.
+  }
+
+  get wrapLongitude() {
+    return false;
   }
 
   initializeState() {
@@ -61,50 +69,30 @@ export default class PathLayer extends Layer {
     const attributeManager = this.getAttributeManager();
     /* eslint-disable max-len */
     attributeManager.addInstanced({
-      startPositions: {
+      positions: {
         size: 3,
-        // Hack - Attribute class needs this to properly apply partial update
-        // The first 3 numbers of the value is just padding
-        offset: 12,
+        // Start filling buffer from 1 vertex in
+        vertexOffset: 1,
+        type: GL.DOUBLE,
+        fp64: this.use64bitPositions(),
         transition: ATTRIBUTE_TRANSITION,
         accessor: 'getPath',
-        update: this.calculateStartPositions,
+        update: this.calculatePositions,
         noAlloc,
         shaderAttributes: {
           instanceLeftPositions: {
-            offset: 0
+            vertexOffset: 0
           },
           instanceStartPositions: {
-            offset: 12
-          }
-        }
-      },
-      endPositions: {
-        size: 3,
-        transition: ATTRIBUTE_TRANSITION,
-        accessor: 'getPath',
-        update: this.calculateEndPositions,
-        noAlloc,
-        shaderAttributes: {
+            vertexOffset: 1
+          },
           instanceEndPositions: {
-            offset: 0
+            vertexOffset: 2
           },
           instanceRightPositions: {
-            offset: 12
+            vertexOffset: 3
           }
         }
-      },
-      instanceLeftStartPositions64xyLow: {
-        size: 4,
-        stride: 8,
-        update: this.calculateLeftStartPositions64xyLow,
-        noAlloc
-      },
-      instanceEndRightPositions64xyLow: {
-        size: 4,
-        stride: 8,
-        update: this.calculateEndRightPositions64xyLow,
-        noAlloc
       },
       instanceTypes: {
         size: 1,
@@ -118,10 +106,10 @@ export default class PathLayer extends Layer {
         transition: ATTRIBUTE_TRANSITION,
         defaultValue: 1
       },
-      instanceDashArrays: {size: 2, accessor: 'getDashArray'},
       instanceColors: {
-        size: 4,
+        size: this.props.colorFormat.length,
         type: GL.UNSIGNED_BYTE,
+        normalized: true,
         accessor: 'getColor',
         transition: ATTRIBUTE_TRANSITION,
         defaultValue: DEFAULT_COLOR
@@ -129,14 +117,21 @@ export default class PathLayer extends Layer {
       instancePickingColors: {
         size: 3,
         type: GL.UNSIGNED_BYTE,
-        accessor: (object, {index, target: value}) => this.encodePickingColor(index, value)
+        accessor: (object, {index, target: value}) =>
+          this.encodePickingColor(object && object.__source ? object.__source.index : index, value)
       }
     });
     /* eslint-enable max-len */
 
     this.setState({
-      pathTesselator: new PathTesselator({})
+      pathTesselator: new PathTesselator({
+        fp64: this.use64bitPositions()
+      })
     });
+
+    if (this.props.getDashArray && !this.props.extensions.length) {
+      log.removed('getDashArray', 'PathStyleExtension')();
+    }
   }
 
   updateState({oldProps, props, changeFlags}) {
@@ -151,16 +146,24 @@ export default class PathLayer extends Layer {
 
     if (geometryChanged) {
       const {pathTesselator} = this.state;
+      const buffers = props.data.attributes || {};
+
       pathTesselator.updateGeometry({
         data: props.data,
+        geometryBuffer: buffers.getPath,
+        buffers,
+        normalize: !props._pathType,
+        loop: props._pathType === 'loop',
         getGeometry: props.getPath,
         positionFormat: props.positionFormat,
-        fp64: this.use64bitPositions(),
+        wrapLongitude: props.wrapLongitude,
+        // TODO - move the flag out of the viewport
+        resolution: this.context.viewport.resolution,
         dataChanged: changeFlags.dataChanged
       });
       this.setState({
         numInstances: pathTesselator.instanceCount,
-        bufferLayout: pathTesselator.bufferLayout
+        startIndices: pathTesselator.vertexStarts
       });
       if (!changeFlags.dataChanged) {
         // Base `layer.updateState` only invalidates all attributes on data change
@@ -171,41 +174,67 @@ export default class PathLayer extends Layer {
 
     if (changeFlags.extensionsChanged) {
       const {gl} = this.context;
-      if (this.state.model) {
-        this.state.model.delete();
-      }
-      this.setState({model: this._getModel(gl)});
+      this.state.model?.delete();
+      this.state.model = this._getModel(gl);
       attributeManager.invalidateAll();
+    }
+  }
+
+  getPickingInfo(params) {
+    const info = super.getPickingInfo(params);
+    const {index} = info;
+    const {data} = this.props;
+
+    // Check if data comes from a composite layer, wrapped with getSubLayerRow
+    if (data[0] && data[0].__source) {
+      // index decoded from picking color refers to the source index
+      info.object = data.find(d => d.__source.index === index);
+    }
+    return info;
+  }
+
+  disablePickingIndex(objectIndex) {
+    const {data} = this.props;
+
+    // Check if data comes from a composite layer, wrapped with getSubLayerRow
+    if (data[0] && data[0].__source) {
+      // index decoded from picking color refers to the source index
+      for (let i = 0; i < data.length; i++) {
+        if (data[i].__source.index === objectIndex) {
+          this._disablePickingIndex(i);
+        }
+      }
+    } else {
+      this._disablePickingIndex(objectIndex);
     }
   }
 
   draw({uniforms}) {
     const {viewport} = this.context;
     const {
-      rounded,
+      jointRounded,
+      capRounded,
       billboard,
       miterLimit,
       widthUnits,
       widthScale,
       widthMinPixels,
-      widthMaxPixels,
-      dashJustified
+      widthMaxPixels
     } = this.props;
 
-    const widthMultiplier = widthUnits === 'pixels' ? viewport.distanceScales.metersPerPixel[2] : 1;
+    const widthMultiplier = widthUnits === 'pixels' ? viewport.metersPerPixel : 1;
 
     this.state.model
-      .setUniforms(
-        Object.assign({}, uniforms, {
-          jointType: Number(rounded),
-          billboard,
-          alignMode: Number(dashJustified),
-          widthScale: widthScale * widthMultiplier,
-          miterLimit,
-          widthMinPixels,
-          widthMaxPixels
-        })
-      )
+      .setUniforms(uniforms)
+      .setUniforms({
+        jointType: Number(jointRounded),
+        capType: Number(capRounded),
+        billboard,
+        widthScale: widthScale * widthMultiplier,
+        miterLimit,
+        widthMinPixels,
+        widthMaxPixels
+      })
       .draw();
   }
 
@@ -225,130 +254,61 @@ export default class PathLayer extends Layer {
      *                                   /     :     o
      */
 
+    // prettier-ignore
     const SEGMENT_INDICES = [
       // start corner
-      0,
-      2,
-      1,
+      0, 1, 2,
       // body
-      1,
-      2,
-      4,
-      1,
-      4,
-      3,
+      1, 4, 2,
+      1, 3, 4,
       // end corner
-      3,
-      4,
-      5
+      3, 5, 4
     ];
 
     // [0] position on segment - 0: start, 1: end
-    // [1] side of path - -1: left, 0: center, 1: right
-    // [2] role - 0: offset point 1: joint point
+    // [1] side of path - -1: left, 0: center (joint), 1: right
+    // prettier-ignore
     const SEGMENT_POSITIONS = [
       // bevel start corner
-      0,
-      0,
-      1,
+      0, 0,
       // start inner corner
-      0,
-      -1,
-      0,
+      0, -1,
       // start outer corner
-      0,
-      1,
-      0,
+      0, 1,
       // end inner corner
-      1,
-      -1,
-      0,
+      1, -1,
       // end outer corner
-      1,
-      1,
-      0,
+      1, 1,
       // bevel end corner
-      1,
-      0,
-      1
+      1, 0
     ];
 
-    return new Model(
-      gl,
-      Object.assign({}, this.getShaders(), {
-        id: this.props.id,
-        geometry: new Geometry({
-          drawMode: GL.TRIANGLES,
-          attributes: {
-            indices: new Uint16Array(SEGMENT_INDICES),
-            positions: new Float32Array(SEGMENT_POSITIONS)
-          }
-        }),
-        isInstanced: true,
-        shaderCache: this.context.shaderCache
-      })
-    );
+    return new Model(gl, {
+      ...this.getShaders(),
+      id: this.props.id,
+      geometry: new Geometry({
+        drawMode: GL.TRIANGLES,
+        attributes: {
+          indices: new Uint16Array(SEGMENT_INDICES),
+          positions: {value: new Float32Array(SEGMENT_POSITIONS), size: 2}
+        }
+      }),
+      isInstanced: true
+    });
   }
 
-  calculateStartPositions(attribute) {
+  calculatePositions(attribute) {
     const {pathTesselator} = this.state;
 
-    attribute.bufferLayout = pathTesselator.bufferLayout;
-    attribute.value = pathTesselator.get('startPositions');
-  }
-
-  calculateEndPositions(attribute) {
-    const {pathTesselator} = this.state;
-
-    attribute.bufferLayout = pathTesselator.bufferLayout;
-    attribute.value = pathTesselator.get('endPositions');
+    attribute.startIndices = pathTesselator.vertexStarts;
+    attribute.value = pathTesselator.get('positions');
   }
 
   calculateSegmentTypes(attribute) {
     const {pathTesselator} = this.state;
 
-    attribute.bufferLayout = pathTesselator.bufferLayout;
+    attribute.startIndices = pathTesselator.vertexStarts;
     attribute.value = pathTesselator.get('segmentTypes');
-  }
-
-  calculateLeftStartPositions64xyLow(attribute) {
-    const isFP64 = this.use64bitPositions();
-    attribute.constant = !isFP64;
-
-    if (isFP64) {
-      attribute.value = this.state.pathTesselator.get('startPositions64XyLow');
-    } else {
-      attribute.value = new Float32Array(4);
-    }
-  }
-
-  calculateEndRightPositions64xyLow(attribute) {
-    const isFP64 = this.use64bitPositions();
-    attribute.constant = !isFP64;
-
-    if (isFP64) {
-      attribute.value = this.state.pathTesselator.get('endPositions64XyLow');
-    } else {
-      attribute.value = new Float32Array(4);
-    }
-  }
-
-  clearPickingColor(color) {
-    const pickedPathIndex = this.decodePickingColor(color);
-    const {bufferLayout} = this.state.pathTesselator;
-    const numVertices = bufferLayout[pickedPathIndex];
-
-    let startInstanceIndex = 0;
-    for (let pathIndex = 0; pathIndex < pickedPathIndex; pathIndex++) {
-      startInstanceIndex += bufferLayout[pathIndex];
-    }
-
-    const {instancePickingColors} = this.getAttributeManager().attributes;
-
-    const {value} = instancePickingColors;
-    const endInstanceIndex = startInstanceIndex + numVertices;
-    value.fill(0, startInstanceIndex * 3, endInstanceIndex * 3);
-    instancePickingColors.update({value});
   }
 }
 

@@ -22,40 +22,25 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-import {Layer, createIterable, fp64LowPart} from '@deck.gl/core';
+import {Layer, project32, phongLighting, picking, COORDINATE_SYSTEM, log} from '@deck.gl/core';
 import GL from '@luma.gl/constants';
-import {Model, Geometry, Texture2D, PhongMaterial, isWebGL2} from '@luma.gl/core';
+import {Model, Geometry, Texture2D, isWebGL2} from '@luma.gl/core';
+import {hasFeature, FEATURES} from '@luma.gl/webgl';
 
-import {MATRIX_ATTRIBUTES} from '../utils/matrix';
+import {MATRIX_ATTRIBUTES, shouldComposeModelMatrix} from '../utils/matrix';
 
-// NOTE(Tarek): Should eventually phase out the glsl1 versions.
-import vs1 from './simple-mesh-layer-vertex.glsl1';
-import fs1 from './simple-mesh-layer-fragment.glsl1';
-import vs3 from './simple-mesh-layer-vertex.glsl';
-import fs3 from './simple-mesh-layer-fragment.glsl';
+import vs from './simple-mesh-layer-vertex.glsl';
+import fs from './simple-mesh-layer-fragment.glsl';
 
-// Replacement for the external assert method to reduce bundle size
-function assert(condition, message) {
-  if (!condition) {
-    throw new Error(`deck.gl: ${message}`);
+function validateGeometryAttributes(attributes, useMeshColors) {
+  const hasColorAttribute = attributes.COLOR_0 || attributes.colors;
+  const useColorAttribute = hasColorAttribute && useMeshColors;
+  if (!useColorAttribute) {
+    attributes.colors = {constant: true, value: new Float32Array([1, 1, 1])};
   }
-}
-
-/*
- * Convert image data into texture
- * @returns {Texture2D} texture
- */
-function getTextureFromData(gl, data, opts) {
-  if (data instanceof Texture2D) {
-    return data;
-  }
-  return new Texture2D(gl, Object.assign({data}, opts));
-}
-
-function validateGeometryAttributes(attributes) {
-  assert(
+  log.assert(
     attributes.positions || attributes.POSITION,
-    'SimpleMeshLayer requires "postions" or "POSITION" attribute in mesh property.'
+    'no "postions" or "POSITION" attribute in mesh'
   );
 }
 
@@ -63,16 +48,16 @@ function validateGeometryAttributes(attributes) {
  * Convert mesh data into geometry
  * @returns {Geometry} geometry
  */
-function getGeometry(data) {
+function getGeometry(data, useMeshColors) {
   if (data.attributes) {
-    validateGeometryAttributes(data.attributes);
+    validateGeometryAttributes(data.attributes, useMeshColors);
     if (data instanceof Geometry) {
       return data;
     } else {
       return new Geometry(data);
     }
   } else if (data.positions || data.POSITION) {
-    validateGeometryAttributes(data);
+    validateGeometryAttributes(data, useMeshColors);
     return new Geometry({
       attributes: data
     });
@@ -81,24 +66,24 @@ function getGeometry(data) {
 }
 
 const DEFAULT_COLOR = [0, 0, 0, 255];
-const defaultMaterial = new PhongMaterial();
 
 const defaultProps = {
   mesh: {value: null, type: 'object', async: true},
-  texture: null,
+  texture: {type: 'image', value: null, async: true},
   sizeScale: {type: 'number', value: 1, min: 0},
-  // TODO - parameters should be merged, not completely overridden
-  parameters: {
-    depthTest: true,
-    depthFunc: GL.LEQUAL
-  },
+  // Whether the color attribute in a mesh will be used
+  // This prop will be removed and set to true in next major release
+  _useMeshColors: {type: 'boolean', value: false},
 
+  // _instanced is a hack to use world position instead of meter offsets in mesh
+  // TODO - formalize API
+  _instanced: true,
   // NOTE(Tarek): Quick and dirty wireframe. Just draws
   // the same mesh with LINE_STRIPS. Won't follow edges
   // of the original mesh.
   wireframe: false,
   // Optional material for 'lighting' shader module
-  material: defaultMaterial,
+  material: true,
   getPosition: {type: 'accessor', value: x => x.position},
   getColor: {type: 'accessor', value: DEFAULT_COLOR},
 
@@ -114,11 +99,21 @@ const defaultProps = {
 
 export default class SimpleMeshLayer extends Layer {
   getShaders() {
-    const gl2 = isWebGL2(this.context.gl);
-    const vs = gl2 ? vs3 : vs1;
-    const fs = gl2 ? fs3 : fs1;
+    const transpileToGLSL100 = !isWebGL2(this.context.gl);
 
-    return super.getShaders({vs, fs, modules: ['project32', 'phong-lighting', 'picking']});
+    const defines = {};
+
+    if (hasFeature(this.context.gl, FEATURES.GLSL_DERIVATIVES)) {
+      defines.DERIVATIVES_AVAILABLE = 1;
+    }
+
+    return super.getShaders({
+      vs,
+      fs,
+      modules: [project32, phongLighting, picking],
+      transpileToGLSL100,
+      defines
+    });
   }
 
   initializeState() {
@@ -127,17 +122,16 @@ export default class SimpleMeshLayer extends Layer {
     attributeManager.addInstanced({
       instancePositions: {
         transition: true,
+        type: GL.DOUBLE,
+        fp64: this.use64bitPositions(),
         size: 3,
         accessor: 'getPosition'
       },
-      instancePositions64xy: {
-        size: 2,
-        accessor: 'getPosition',
-        update: this.calculateInstancePositions64xyLow
-      },
       instanceColors: {
+        type: GL.UNSIGNED_BYTE,
         transition: true,
-        size: 4,
+        size: this.props.colorFormat.length,
+        normalized: true,
         accessor: 'getColor',
         defaultValue: [0, 0, 0, 255]
       },
@@ -159,11 +153,9 @@ export default class SimpleMeshLayer extends Layer {
     super.updateState({props, oldProps, changeFlags});
 
     if (props.mesh !== oldProps.mesh || changeFlags.extensionsChanged) {
-      if (this.state.model) {
-        this.state.model.delete();
-      }
+      this.state.model?.delete();
       if (props.mesh) {
-        this.setState({model: this.getModel(props.mesh)});
+        this.state.model = this.getModel(props.mesh);
 
         const attributes = props.mesh.attributes || props.mesh;
         this.setState({
@@ -186,9 +178,6 @@ export default class SimpleMeshLayer extends Layer {
     super.finalizeState();
 
     this.state.emptyTexture.delete();
-    if (this.state.texture) {
-      this.state.texture.delete();
-    }
   }
 
   draw({uniforms}) {
@@ -196,28 +185,29 @@ export default class SimpleMeshLayer extends Layer {
       return;
     }
 
-    const {sizeScale} = this.props;
+    const {viewport} = this.context;
+    const {sizeScale, coordinateSystem, _instanced} = this.props;
 
-    this.state.model.draw({
-      uniforms: Object.assign({}, uniforms, {
+    this.state.model
+      .setUniforms(uniforms)
+      .setUniforms({
         sizeScale,
-        flatShade: !this.state.hasNormals
+        composeModelMatrix: !_instanced || shouldComposeModelMatrix(viewport, coordinateSystem),
+        flatShading: !this.state.hasNormals
       })
-    });
+      .draw();
   }
 
   getModel(mesh) {
-    const model = new Model(
-      this.context.gl,
-      Object.assign({}, this.getShaders(), {
-        id: this.props.id,
-        geometry: getGeometry(mesh),
-        isInstanced: true,
-        shaderCache: this.context.shaderCache
-      })
-    );
+    const model = new Model(this.context.gl, {
+      ...this.getShaders(),
+      id: this.props.id,
+      geometry: getGeometry(mesh, this.props._useMeshColors),
+      isInstanced: true
+    });
 
-    const {texture, emptyTexture} = this.state;
+    const {texture} = this.props;
+    const {emptyTexture} = this.state;
     model.setUniforms({
       sampler: texture || emptyTexture,
       hasTexture: Boolean(texture)
@@ -226,46 +216,15 @@ export default class SimpleMeshLayer extends Layer {
     return model;
   }
 
-  setTexture(image) {
-    const {gl} = this.context;
+  setTexture(texture) {
     const {emptyTexture, model} = this.state;
 
-    if (this.state.texture) {
-      this.state.texture.delete();
-    }
-
-    const texture = image ? getTextureFromData(gl, image) : null;
-    this.setState({texture});
-
-    if (model) {
-      // props.mesh may not be ready at this time.
-      // The sampler will be set when `getModel` is called
-      model.setUniforms({
-        sampler: texture || emptyTexture,
-        hasTexture: Boolean(texture)
-      });
-    }
-  }
-
-  calculateInstancePositions64xyLow(attribute, {startRow, endRow}) {
-    const isFP64 = this.use64bitPositions();
-    attribute.constant = !isFP64;
-
-    if (!isFP64) {
-      attribute.value = new Float32Array(2);
-      return;
-    }
-
-    const {data, getPosition} = this.props;
-    const {value, size} = attribute;
-    let i = startRow * size;
-    const {iterable, objectInfo} = createIterable(data, startRow, endRow);
-    for (const object of iterable) {
-      objectInfo.index++;
-      const position = getPosition(object, objectInfo);
-      value[i++] = fp64LowPart(position[0]);
-      value[i++] = fp64LowPart(position[1]);
-    }
+    // props.mesh may not be ready at this time.
+    // The sampler will be set when `getModel` is called
+    model?.setUniforms({
+      sampler: texture || emptyTexture,
+      hasTexture: Boolean(texture)
+    });
   }
 }
 

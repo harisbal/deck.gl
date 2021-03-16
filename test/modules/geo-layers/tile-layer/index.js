@@ -1,4 +1,4 @@
-import './tile-cache.spec';
-import './tile.spec';
+import './utils.spec';
 import './tile-layer.spec';
-import './viewport-util.spec';
+import './tileset-2d.spec';
+import './tile-2d-header.spec';

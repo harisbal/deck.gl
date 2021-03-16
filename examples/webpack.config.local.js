@@ -21,21 +21,24 @@ function makeLocalDevConfig(EXAMPLE_DIR = LIB_DIR, linkToLuma) {
     '@luma.gl/constants': `${ROOT_DIR}/../luma.gl/modules/constants/src`,
     '@luma.gl/core': `${ROOT_DIR}/../luma.gl/modules/core/src`,
     '@luma.gl/debug': `${ROOT_DIR}/../luma.gl/modules/debug/src`,
+    '@luma.gl/engine': `${ROOT_DIR}/../luma.gl/modules/engine/src`,
     '@luma.gl/webgl': `${ROOT_DIR}/../luma.gl/modules/webgl/src`,
-    '@luma.gl/webgl-state-tracker': `${ROOT_DIR}/../luma.gl/modules/webgl-state-tracker/src`,
-    '@luma.gl/webgl2-polyfill': `${ROOT_DIR}/../luma.gl/modules/webgl2-polyfill/src`,
+    '@luma.gl/gltools': `${ROOT_DIR}/../luma.gl/modules/gltools/src`,
     '@luma.gl/shadertools': `${ROOT_DIR}/../luma.gl/modules/shadertools/src`,
-    '@luma.gl/addons': `${ROOT_DIR}/../luma.gl/modules/addons/src`
+    '@luma.gl/experimental': `${ROOT_DIR}/../luma.gl/modules/experimental/src`
   };
   const LUMA_LOCAL_ALIASES = {
+    '@luma.gl/constants': `${ROOT_DIR}/node_modules/@luma.gl/constants`,
     '@luma.gl/core': `${ROOT_DIR}/node_modules/@luma.gl/core`,
+    '@luma.gl/engine': `${ROOT_DIR}/node_modules/@luma.gl/engine`,
     '@luma.gl/webgl': `${ROOT_DIR}/node_modules/@luma.gl/webgl`,
-    '@luma.gl/webgl-state-tracker': `${ROOT_DIR}/node_modules/@luma.gl/webgl-state-tracker`,
-    '@luma.gl/webgl2-polyfill': `${ROOT_DIR}/node_modules/@luma.gl/webgl2-polyfill`,
+    '@luma.gl/gltools': `${ROOT_DIR}/node_modules/@luma.gl/gltools`,
     '@luma.gl/shadertools': `${ROOT_DIR}/node_modules/@luma.gl/shadertools`,
-    // @luma.gl/addons is not available in the root node_modules, must be imported
+    '@luma.gl/experimental': `${ROOT_DIR}/node_modules/@luma.gl/experimental`,
+    // @luma.gl/experimental is not available in the root node_modules, must be imported
     // where required.
-    '@loaders.gl/core': `${ROOT_DIR}/node_modules/@loaders.gl/core`
+    '@loaders.gl/core': `${ROOT_DIR}/node_modules/@loaders.gl/core`,
+    '@loaders.gl/images': `${ROOT_DIR}/node_modules/@loaders.gl/images`
   };
 
   const LUMA_ALIASES = linkToLuma ? LUMA_LINK_ALIASES : LUMA_LOCAL_ALIASES;
@@ -64,7 +67,6 @@ function makeLocalDevConfig(EXAMPLE_DIR = LIB_DIR, linkToLuma) {
         // Versions will be controlled by the deck.gl top level package.json
         'math.gl': resolve(LIB_DIR, './node_modules/math.gl'),
         'viewport-mercator-project': resolve(LIB_DIR, './node_modules/viewport-mercator-project'),
-        seer: resolve(LIB_DIR, './node_modules/seer'),
         react: resolve(LIB_DIR, './node_modules/react')
       })
     },
@@ -83,9 +85,9 @@ function makeLocalDevConfig(EXAMPLE_DIR = LIB_DIR, linkToLuma) {
           test: /\.js$/,
           loader: 'babel-loader',
           options: {
-            presets: ['@babel/env']
+            presets: [['@babel/env', {targets: '> 1%, not ie 11'}]]
           },
-          include: [`${ROOT_DIR}/modules`, `${ROOT_DIR}/../luma.gl/modules`]
+          include: [resolve(ROOT_DIR, 'modules'), resolve(ROOT_DIR, '../luma.gl/modules')]
         }
       ]
     }

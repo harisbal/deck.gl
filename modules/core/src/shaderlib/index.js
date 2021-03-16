@@ -18,39 +18,34 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-import {
-  registerShaderModules,
-  setDefaultShaderModules,
-  createShaderHook,
-  createModuleInjection
-} from '@luma.gl/core';
-import {fp32, picking, gouraudlighting, phonglighting} from '@luma.gl/core';
+import {ProgramManager} from '@luma.gl/core';
+import {gouraudLighting, phongLighting} from '@luma.gl/core';
 import geometry from './misc/geometry';
 import project from './project/project';
 import project32 from './project32/project32';
-import project64 from './project64/project64';
+import shadow from './shadow/shadow';
+import picking from './picking/picking';
 
-export function initializeShaderModules() {
-  registerShaderModules([fp32, project, project32, gouraudlighting, phonglighting, picking]);
+const DEFAULT_MODULES = [geometry, project];
 
-  setDefaultShaderModules([geometry, project]);
+const SHADER_HOOKS = [
+  'vs:DECKGL_FILTER_SIZE(inout vec3 size, VertexGeometry geometry)',
+  'vs:DECKGL_FILTER_GL_POSITION(inout vec4 position, VertexGeometry geometry)',
+  'vs:DECKGL_FILTER_COLOR(inout vec4 color, VertexGeometry geometry)',
+  'fs:DECKGL_FILTER_COLOR(inout vec4 color, FragmentGeometry geometry)'
+];
 
-  createShaderHook('vs:DECKGL_FILTER_SIZE(inout vec3 size, VertexGeometry geometry)');
-  createShaderHook('vs:DECKGL_FILTER_GL_POSITION(inout vec4 position, VertexGeometry geometry)');
-  createShaderHook('vs:DECKGL_FILTER_COLOR(inout vec4 color, VertexGeometry geometry)');
-  createShaderHook('fs:DECKGL_FILTER_COLOR(inout vec4 color, FragmentGeometry geometry)');
+export function createProgramManager(gl) {
+  const programManager = ProgramManager.getDefaultProgramManager(gl);
 
-  createModuleInjection('picking', {
-    hook: 'fs:DECKGL_FILTER_COLOR',
-    order: 99,
-    injection: `
-  // use highlight color if this fragment belongs to the selected object.
-  color = picking_filterHighlightColor(color);
+  for (const shaderModule of DEFAULT_MODULES) {
+    programManager.addDefaultModule(shaderModule);
+  }
+  for (const shaderHook of SHADER_HOOKS) {
+    programManager.addShaderHook(shaderHook);
+  }
 
-  // use picking color if rendering to picking FBO.
-  color = picking_filterPickingColor(color);
-`
-  });
+  return programManager;
 }
 
-export {picking, project, project64, gouraudlighting, phonglighting};
+export {picking, project, project32, gouraudLighting, phongLighting, shadow};

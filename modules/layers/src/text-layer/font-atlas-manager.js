@@ -1,10 +1,7 @@
 /* global document */
-
-import {Texture2D} from '@luma.gl/core';
 import TinySDF from '@mapbox/tiny-sdf';
-import GL from '@luma.gl/constants';
 
-import {buildMapping} from './font-atlas-utils';
+import {buildMapping} from './utils';
 import LRUCache from './lru-cache';
 
 function getDefaultCharacterSet() {
@@ -19,13 +16,10 @@ export const DEFAULT_CHAR_SET = getDefaultCharacterSet();
 export const DEFAULT_FONT_FAMILY = 'Monaco, monospace';
 export const DEFAULT_FONT_WEIGHT = 'normal';
 export const DEFAULT_FONT_SIZE = 64;
-export const DEFAULT_BUFFER = 2;
+export const DEFAULT_BUFFER = 4;
 export const DEFAULT_CUTOFF = 0.25;
-export const DEFAULT_RADIUS = 3;
+export const DEFAULT_RADIUS = 12;
 
-const GL_TEXTURE_WRAP_S = 0x2802;
-const GL_TEXTURE_WRAP_T = 0x2803;
-const GL_CLAMP_TO_EDGE = 0x812f;
 const MAX_CANVAS_WIDTH = 1024;
 
 const BASELINE_SCALE = 0.9;
@@ -104,9 +98,7 @@ function setTextStyle(ctx, fontFamily, fontSize, fontWeight) {
 }
 
 export default class FontAtlasManager {
-  constructor(gl) {
-    this.gl = gl;
-
+  constructor() {
     // font settings
     this.props = {
       fontFamily: DEFAULT_FONT_FAMILY,
@@ -123,20 +115,15 @@ export default class FontAtlasManager {
 
     // key is used for caching generated fontAtlas
     this._key = null;
-    this._texture = new Texture2D(this.gl);
-  }
-
-  finalize() {
-    this._texture.delete();
+    this._atlas = null;
   }
 
   get texture() {
-    return this._texture;
+    return this._atlas;
   }
 
   get mapping() {
-    const data = cache.get(this._key);
-    return data && data.mapping;
+    return this._atlas && this._atlas.mapping;
   }
 
   get scale() {
@@ -162,39 +149,17 @@ export default class FontAtlasManager {
     if (cachedFontAtlas && charSet.length === 0) {
       // update texture with cached fontAtlas
       if (this._key !== oldKey) {
-        this._updateTexture(cachedFontAtlas);
+        this._atlas = cachedFontAtlas;
       }
       return;
     }
 
     // update fontAtlas with new settings
     const fontAtlas = this._generateFontAtlas(this._key, charSet, cachedFontAtlas);
-    this._updateTexture(fontAtlas);
+    this._atlas = fontAtlas;
 
     // update cache
     cache.set(this._key, fontAtlas);
-  }
-
-  _updateTexture({data: canvas, width, height}) {
-    // resize texture
-    if (this._texture.width !== width || this._texture.height !== height) {
-      this._texture.resize({width, height});
-    }
-
-    // update image data
-    this._texture.setImageData({
-      data: canvas,
-      width,
-      height,
-      parameters: {
-        [GL_TEXTURE_WRAP_S]: GL_CLAMP_TO_EDGE,
-        [GL_TEXTURE_WRAP_T]: GL_CLAMP_TO_EDGE,
-        [GL.UNPACK_FLIP_Y_WEBGL]: true
-      }
-    });
-
-    // this is required step after texture data changed
-    this._texture.generateMipmap();
   }
 
   _generateFontAtlas(key, characterSet, cachedFontAtlas) {
@@ -209,22 +174,18 @@ export default class FontAtlasManager {
     setTextStyle(ctx, fontFamily, fontSize, fontWeight);
 
     // 1. build mapping
-    const {mapping, canvasHeight, xOffset, yOffset} = buildMapping(
-      Object.assign(
-        {
-          getFontWidth: char => ctx.measureText(char).width,
-          fontHeight: fontSize * HEIGHT_SCALE,
-          buffer,
-          characterSet,
-          maxCanvasWidth: MAX_CANVAS_WIDTH
-        },
-        cachedFontAtlas && {
-          mapping: cachedFontAtlas.mapping,
-          xOffset: cachedFontAtlas.xOffset,
-          yOffset: cachedFontAtlas.yOffset
-        }
-      )
-    );
+    const {mapping, canvasHeight, xOffset, yOffset} = buildMapping({
+      getFontWidth: char => ctx.measureText(char).width,
+      fontHeight: fontSize * HEIGHT_SCALE,
+      buffer,
+      characterSet,
+      maxCanvasWidth: MAX_CANVAS_WIDTH,
+      ...(cachedFontAtlas && {
+        mapping: cachedFontAtlas.mapping,
+        xOffset: cachedFontAtlas.xOffset,
+        yOffset: cachedFontAtlas.yOffset
+      })
+    });
 
     // 2. update canvas
     // copy old canvas data to new canvas only when height changed
@@ -244,7 +205,7 @@ export default class FontAtlasManager {
 
       for (const char of characterSet) {
         populateAlphaChannel(tinySDF.draw(char), imageData);
-        ctx.putImageData(imageData, mapping[char].x - buffer, mapping[char].y - buffer);
+        ctx.putImageData(imageData, mapping[char].x - buffer, mapping[char].y + buffer);
       }
     } else {
       for (const char of characterSet) {
@@ -263,10 +224,10 @@ export default class FontAtlasManager {
   }
 
   _getKey() {
-    const {gl, fontFamily, fontWeight, fontSize, buffer, sdf, radius, cutoff} = this.props;
+    const {fontFamily, fontWeight, fontSize, buffer, sdf, radius, cutoff} = this.props;
     if (sdf) {
-      return `${gl} ${fontFamily} ${fontWeight} ${fontSize} ${buffer} ${radius} ${cutoff}`;
+      return `${fontFamily} ${fontWeight} ${fontSize} ${buffer} ${radius} ${cutoff}`;
     }
-    return `${gl} ${fontFamily} ${fontWeight} ${fontSize} ${buffer}`;
+    return `${fontFamily} ${fontWeight} ${fontSize} ${buffer}`;
   }
 }

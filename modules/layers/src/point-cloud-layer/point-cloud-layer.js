@@ -18,16 +18,15 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-import {Layer, createIterable, fp64LowPart} from '@deck.gl/core';
+import {Layer, project32, gouraudLighting, picking} from '@deck.gl/core';
 import GL from '@luma.gl/constants';
-import {Model, Geometry, PhongMaterial} from '@luma.gl/core';
+import {Model, Geometry} from '@luma.gl/core';
 
 import vs from './point-cloud-layer-vertex.glsl';
 import fs from './point-cloud-layer-fragment.glsl';
 
 const DEFAULT_COLOR = [0, 0, 0, 255];
 const DEFAULT_NORMAL = [0, 0, 1];
-const defaultMaterial = new PhongMaterial();
 
 const defaultProps = {
   sizeUnits: 'pixels',
@@ -37,15 +36,35 @@ const defaultProps = {
   getNormal: {type: 'accessor', value: DEFAULT_NORMAL},
   getColor: {type: 'accessor', value: DEFAULT_COLOR},
 
-  material: defaultMaterial,
+  material: true,
 
   // Depreated
   radiusPixels: {deprecatedFor: 'pointSize'}
 };
 
+// support loaders.gl point cloud format
+function normalizeData(data) {
+  const {header, attributes} = data;
+  if (!header || !attributes) {
+    return;
+  }
+
+  data.length = header.vertexCount;
+
+  if (attributes.POSITION) {
+    attributes.instancePositions = attributes.POSITION;
+  }
+  if (attributes.NORMAL) {
+    attributes.instanceNormals = attributes.NORMAL;
+  }
+  if (attributes.COLOR_0) {
+    attributes.instanceColors = attributes.COLOR_0;
+  }
+}
+
 export default class PointCloudLayer extends Layer {
-  getShaders(id) {
-    return super.getShaders({vs, fs, modules: ['project32', 'gouraud-lighting', 'picking']});
+  getShaders() {
+    return super.getShaders({vs, fs, modules: [project32, gouraudLighting, picking]});
   }
 
   initializeState() {
@@ -53,13 +72,10 @@ export default class PointCloudLayer extends Layer {
     this.getAttributeManager().addInstanced({
       instancePositions: {
         size: 3,
+        type: GL.DOUBLE,
+        fp64: this.use64bitPositions(),
         transition: true,
         accessor: 'getPosition'
-      },
-      instancePositions64xyLow: {
-        size: 2,
-        accessor: 'getPosition',
-        update: this.calculateInstancePositions64xyLow
       },
       instanceNormals: {
         size: 3,
@@ -68,8 +84,9 @@ export default class PointCloudLayer extends Layer {
         defaultValue: DEFAULT_NORMAL
       },
       instanceColors: {
-        size: 4,
+        size: this.props.colorFormat.length,
         type: GL.UNSIGNED_BYTE,
+        normalized: true,
         transition: true,
         accessor: 'getColor',
         defaultValue: DEFAULT_COLOR
@@ -82,11 +99,12 @@ export default class PointCloudLayer extends Layer {
     super.updateState({props, oldProps, changeFlags});
     if (changeFlags.extensionsChanged) {
       const {gl} = this.context;
-      if (this.state.model) {
-        this.state.model.delete();
-      }
-      this.setState({model: this._getModel(gl)});
+      this.state.model?.delete();
+      this.state.model = this._getModel(gl);
       this.getAttributeManager().invalidateAll();
+    }
+    if (changeFlags.dataChanged) {
+      normalizeData(props.data);
     }
   }
 
@@ -94,14 +112,13 @@ export default class PointCloudLayer extends Layer {
     const {viewport} = this.context;
     const {pointSize, sizeUnits} = this.props;
 
-    const sizeMultiplier = sizeUnits === 'meters' ? viewport.distanceScales.pixelsPerMeter[2] : 1;
+    const sizeMultiplier = sizeUnits === 'meters' ? 1 / viewport.metersPerPixel : 1;
 
     this.state.model
-      .setUniforms(
-        Object.assign({}, uniforms, {
-          radiusPixels: pointSize * sizeMultiplier
-        })
-      )
+      .setUniforms(uniforms)
+      .setUniforms({
+        radiusPixels: pointSize * sizeMultiplier
+      })
       .draw();
   }
 
@@ -113,41 +130,17 @@ export default class PointCloudLayer extends Layer {
       positions.push(Math.cos(angle) * 2, Math.sin(angle) * 2, 0);
     }
 
-    return new Model(
-      gl,
-      Object.assign({}, this.getShaders(), {
-        id: this.props.id,
-        geometry: new Geometry({
-          drawMode: GL.TRIANGLES,
-          attributes: {
-            positions: new Float32Array(positions)
-          }
-        }),
-        isInstanced: true,
-        shaderCache: this.context.shaderCache
-      })
-    );
-  }
-
-  calculateInstancePositions64xyLow(attribute, {startRow, endRow}) {
-    const isFP64 = this.use64bitPositions();
-    attribute.constant = !isFP64;
-
-    if (!isFP64) {
-      attribute.value = new Float32Array(2);
-      return;
-    }
-
-    const {data, getPosition} = this.props;
-    const {value, size} = attribute;
-    let i = startRow * size;
-    const {iterable, objectInfo} = createIterable(data, startRow, endRow);
-    for (const object of iterable) {
-      objectInfo.index++;
-      const position = getPosition(object, objectInfo);
-      value[i++] = fp64LowPart(position[0]);
-      value[i++] = fp64LowPart(position[1]);
-    }
+    return new Model(gl, {
+      ...this.getShaders(),
+      id: this.props.id,
+      geometry: new Geometry({
+        drawMode: GL.TRIANGLES,
+        attributes: {
+          positions: new Float32Array(positions)
+        }
+      }),
+      isInstanced: true
+    });
   }
 }
 

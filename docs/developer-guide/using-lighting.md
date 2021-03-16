@@ -1,4 +1,4 @@
-# Guide to Using Lighting Effect
+# Using Lighting
 
 A deck.gl lighting effect is a visual approximation of environment illumination based on simplified models to make rendering appear more realistic.
 
@@ -13,7 +13,7 @@ To enable lighting in deck.gl, it is required that both the lighting effect and 
 
 ## Constructing A Lighting Effect Instance
 
-A [LightingEffect](/docs/effects/lighting-effect.md) can be instantiated with a `lights` object:
+A [LightingEffect](/docs/api-reference/core/lighting-effect.md) can be instantiated with a `lights` object:
 
 ```js
 import {AmbientLight, PointLight, DirectionalLight, LightingEffect} from '@deck.gl/core';
@@ -42,27 +42,24 @@ const lightingEffect = new LightingEffect({ambientLight, pointLight, directional
 
 The `lights` has all the light sources that the lighting effect uses to build the visualization. Users typically specify the following types of light sources:
 
-* [AmbientLight](/docs/api-reference/lights/ambient-light.md)
-* [PointLight](/docs/api-reference/lights/point-light.md)
-* [DirectionalLight](/docs/api-reference/lights/directional-light.md)
-* [CameraLight](/docs/api-reference/lights/camera-light.md)
-* [SunLight](/docs/api-reference/lights/sun-light.md)
+* [AmbientLight](/docs/api-reference/core/ambient-light.md)
+* [PointLight](/docs/api-reference/core/point-light.md)
+* [DirectionalLight](/docs/api-reference/core/directional-light.md)
+* [CameraLight](/docs/api-reference/core/camera-light.md)
+* [SunLight](/docs/api-reference/core/sun-light.md)
 
 
 ## Constructing A Material Instance
 
-A material represents a lighting model specified per layer, a [PhongMaterial](https://github.com/uber/luma.gl/tree/7.0-release/docs/api-reference/core/materials/phong-material.md)
-can be instantiated with model parameters.
+A material is a plain JavaScript object representing a lighting model specified per layer. Properties are `ambient` (number 0-1), `diffuse` (number 0-1), `shininess` (number > 0), `specularColor` (array [0-255, 0-255, 0-255]). Setting a material property to the value `true` will set all properties to their defaults, which are:
 
 ```js
-import {PhongMaterial} from '@luma.gl/core';
-
-const material =  new PhongMaterial({
-  ambient: 0.2,
-  diffuse: 0.5,
+{
+  ambient: 0.35,
+  diffuse: 0.6,
   shininess: 32,
-  specularColor: [255, 255, 255]
-});
+  specularColor: [30, 30, 30]
+}
 ```
 
 
@@ -79,7 +76,7 @@ new GeoJsonLayer({
   material
 });
 ```
-Refer to each layer's [documentation](/docs/layers/README.md) to see if the material prop is supported.
+Refer to each layer's [documentation](/docs/api-reference/geo-layers/README.md) to see if the material prop is supported.
 
 ## Using Effects
 

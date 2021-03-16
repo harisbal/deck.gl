@@ -2,30 +2,23 @@
   <head>
     <title>deck.gl TextLayer Example</title>
 
-    <script src="https://unpkg.com/deck.gl@^7.0.0/dist.min.js"></script>
+    <script src="https://unpkg.com/deck.gl@^8.0.0/dist.min.js"></script>
 
-    <script src="https://api.tiles.mapbox.com/mapbox-gl-js/v0.50.0/mapbox-gl.js"></script>
+    <script src="https://api.tiles.mapbox.com/mapbox-gl-js/v1.4.0/mapbox-gl.js"></script>
 
     <style type="text/css">
       body {
         width: 100vw;
         height: 100vh;
         margin: 0;
+        overflow: hidden;
       }
-      #tooltip:empty {
-        display: none;
-      }
-      #tooltip {
+      .deck-tooltip {
         font-family: Helvetica, Arial, sans-serif;
-        position: absolute;
-        padding: 4px;
+        padding: 6px !important;
         margin: 8px;
-        background: rgba(0, 0, 0, 0.8);
-        color: #fff;
         max-width: 300px;
         font-size: 10px;
-        z-index: 9;
-        pointer-events: none;
       }
       #control-panel {
         position: absolute;
@@ -68,14 +61,17 @@
     const {DeckGL,TextLayer} = deck;
 
     const deckgl = new DeckGL({
-      mapboxApiAccessToken: '<mapbox-access-token>',
-      mapStyle: 'mapbox://styles/mapbox/dark-v9',
-      longitude: -122.4,
-      latitude: 37.74,
-      zoom: 11,
-      maxZoom: 15,
-      pitch: 30,
-      bearing: 0,
+      mapStyle: 'https://basemaps.cartocdn.com/gl/dark-matter-nolabels-gl-style/style.json',
+      initialViewState: {
+        longitude: -122.4,
+        latitude: 37.74,
+        zoom: 11,
+        maxZoom: 15,
+        pitch: 30,
+        bearing: 0
+      },
+      controller: true,
+      getTooltip: ({object}) => object && `${object.name}\n${object.address}`
     });
     
     const OPTIONS = ['getSize', 'opacity'];
@@ -95,7 +91,7 @@
 
       const textLayer = new TextLayer({
         id: 'text-layer',
-        data: 'https://raw.githubusercontent.com/uber-common/deck.gl-data/master/website/bart-stations.json',
+        data: 'https://raw.githubusercontent.com/visgl/deck.gl-data/master/website/bart-stations.json',
         pickable: true,
         getPosition: d => d.coordinates,
         getText: d => d.name,
@@ -103,22 +99,10 @@
         getColor: [247,248,243],
         getTextAnchor: 'middle',
         getAlignmentBaseline: 'center',
-        onHover: updateTooltip,
         ...options
       });
       
       deckgl.setProps({ layers: [textLayer] });
-    }
-
-    function updateTooltip({x, y, object}) {
-      const tooltip = document.getElementById('tooltip');
-      if (object) {
-        tooltip.style.top = `${y}px`;
-        tooltip.style.left = `${x}px`;
-        tooltip.innerHTML = `${object.name}\n${object.address}`;
-      } else {
-        tooltip.innerHTML = '';
-      }
     }
     
   </script>

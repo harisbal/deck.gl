@@ -1,3 +1,5 @@
+/* global window */
+
 import React, {PureComponent} from 'react';
 import {StaticMap, _MapContext as MapContext, NavigationControl} from 'react-map-gl';
 import autobind from 'react-autobind';
@@ -6,32 +8,42 @@ import DeckGL from '@deck.gl/react';
 import {COORDINATE_SYSTEM, View} from '@deck.gl/core';
 
 import LayerInfo from './components/layer-info';
-
-/* eslint-disable no-process-env */
-const MapboxAccessToken =
-  process.env.MapboxAccessToken || // eslint-disable-line
-  'Set MapboxAccessToken environment variable or put your token here.';
+import {RenderMetrics} from './render-metrics';
 
 const NAVIGATION_CONTROL_STYLES = {
   margin: 10,
-  position: 'absolute',
-  zIndex: 1
+  position: 'absolute'
 };
 
 const VIEW_LABEL_STYLES = {
-  zIndex: 10,
   padding: 5,
   margin: 20,
   fontSize: 12,
   backgroundColor: '#282727',
-  color: '#FFFFFF'
+  color: '#FFFFFF',
+  position: 'absolute'
 };
 
-const ViewportLabel = props => (
-  <div style={{position: 'absolute'}}>
-    <div style={{...VIEW_LABEL_STYLES, display: ''}}>{props.children}</div>
-  </div>
-);
+const INITIAL_VIEW_STATES = {
+  basemap: {
+    latitude: 37.752,
+    longitude: -122.427,
+    zoom: 11.5,
+    pitch: 0,
+    bearing: 0
+  },
+  infovis: {
+    target: [0, 0, 0],
+    zoom: 3,
+    rotationX: -30,
+    rotationOrbit: 30,
+    orbitAxis: 'Y'
+  }
+};
+
+const MAP_STYLE = 'https://basemaps.cartocdn.com/gl/positron-nolabels-gl-style/style.json';
+
+const ViewportLabel = props => <div style={VIEW_LABEL_STYLES}>{props.children}</div>;
 
 export default class Map extends PureComponent {
   constructor(props) {
@@ -39,28 +51,24 @@ export default class Map extends PureComponent {
     autobind(this);
 
     this.state = {
-      mapViewState: {
-        latitude: 37.752,
-        longitude: -122.427,
-        zoom: 11.5,
-        pitch: 0,
-        bearing: 0
-      },
-      orbitViewState: {
-        target: [0, 0, 0],
-        zoom: 3,
-        rotationX: -30,
-        rotationOrbit: 30,
-        orbitAxis: 'Y'
-      },
       hoveredItem: null,
       clickedItem: null,
       queriedItems: null,
 
-      enableDepthPickOnClick: false
+      enableDepthPickOnClick: false,
+      metrics: null
     };
 
     this.deckRef = React.createRef();
+    this.cameraShakeHandle = null;
+  }
+
+  componentDidMount() {
+    this.cameraShakeHandle = window.requestAnimationFrame(this._cameraShake);
+  }
+
+  componentWillUnmount() {
+    window.cancelAnimationFrame(this.cameraShakeHandle);
   }
 
   pickObjects(opts) {
@@ -79,15 +87,22 @@ export default class Map extends PureComponent {
     }
   }
 
-  _onViewStateChange({viewState, viewId}) {
-    if (viewId === 'infovis') {
-      this.setState({orbitViewState: viewState});
-      return;
+  _cameraShake() {
+    this.cameraShakeHandle = window.requestAnimationFrame(this._cameraShake);
+    if (this.deckRef.current && this.props.shakeCamera) {
+      const deck = this.deckRef.current.deck;
+      const viewState = deck.viewManager.getViewState();
+      deck.setProps({
+        viewState: Object.assign({}, viewState, {
+          latitude: viewState.latitude + (Math.random() * 0.0002 - 0.0001),
+          longitude: viewState.longitude + (Math.random() * 0.0002 - 0.0001)
+        })
+      });
     }
-    if (viewState.pitch > 60) {
-      viewState.pitch = 60;
-    }
-    this.setState({mapViewState: viewState});
+  }
+
+  _onMetrics(metrics) {
+    this.setState({metrics: Object.assign({}, metrics)});
   }
 
   _onHover(info) {
@@ -95,8 +110,8 @@ export default class Map extends PureComponent {
   }
 
   _onClick(info) {
-    if (this.state.enableDepthPickOnClick && info) {
-      this._multiDepthPick(info.x, info.y);
+    if (this.props.onClick) {
+      this.props.onClick(info);
     } else {
       console.log('onClick', info); // eslint-disable-line
       this.setState({clickedItem: info});
@@ -104,31 +119,33 @@ export default class Map extends PureComponent {
   }
 
   // Only show infovis layers in infovis mode and vice versa
-  _layerFilter({layer}) {
+  _layerFilter({layer, renderPass}) {
     const {settings} = this.props;
-    const isIdentity = layer.props.coordinateSystem === COORDINATE_SYSTEM.IDENTITY;
+    const isIdentity = layer.props.coordinateSystem === COORDINATE_SYSTEM.CARTESIAN;
     return settings.infovis ? isIdentity : !isIdentity;
   }
 
   render() {
-    const {orbitViewState, mapViewState, hoveredItem, clickedItem, queriedItems} = this.state;
+    const {hoveredItem, clickedItem, queriedItems} = this.state;
     const {
       layers,
       views,
       effects,
-      settings: {infovis, pickingRadius, drawPickingColors, useDevicePixels}
+      settings: {pickingRadius, drawPickingColors, useDevicePixels}
     } = this.props;
 
     return (
       <div style={{backgroundColor: '#eeeeee'}}>
+        <div style={{position: 'absolute', top: '10px', left: '100px', zIndex: 999}}>
+          <RenderMetrics metrics={this.state.metrics} />
+        </div>
         <DeckGL
           ref={this.deckRef}
           id="default-deckgl-overlay"
           layers={layers}
           layerFilter={this._layerFilter}
           views={views}
-          viewState={infovis ? orbitViewState : mapViewState}
-          onViewStateChange={this._onViewStateChange}
+          initialViewState={INITIAL_VIEW_STATES}
           effects={effects}
           pickingRadius={pickingRadius}
           onHover={this._onHover}
@@ -137,13 +154,10 @@ export default class Map extends PureComponent {
           debug={true}
           drawPickingColors={drawPickingColors}
           ContextProvider={MapContext.Provider}
+          _onMetrics={this._onMetrics}
         >
           <View id="basemap">
-            <StaticMap
-              key="map"
-              mapStyle="mapbox://styles/mapbox/light-v9"
-              mapboxApiAccessToken={MapboxAccessToken || 'no_token'}
-            />
+            <StaticMap key="map" mapStyle={MAP_STYLE} />
             <ViewportLabel key="label">Map View</ViewportLabel>
           </View>
 

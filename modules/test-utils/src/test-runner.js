@@ -24,7 +24,8 @@ import {Deck, MapView} from '@deck.gl/core';
 
 const GL_VENDOR = 0x1f00;
 
-const DEFAULT_DECK_PROPS = Object.assign({}, Deck.defaultProps, {
+const DEFAULT_DECK_PROPS = {
+  ...Deck.defaultProps,
   id: 'deckgl-render-test',
   width: 800,
   height: 450,
@@ -32,7 +33,7 @@ const DEFAULT_DECK_PROPS = Object.assign({}, Deck.defaultProps, {
   views: [new MapView()],
   useDevicePixels: false,
   debug: true
-});
+};
 
 const DEFAULT_TEST_OPTIONS = {
   // test lifecycle callback
@@ -45,9 +46,7 @@ const DEFAULT_TEST_OPTIONS = {
 };
 
 const DEFAULT_TEST_CASE = {
-  name: 'Unnamed test',
-  props: {},
-  onAfterRender: ({done}) => done()
+  name: 'Unnamed test'
 };
 
 export default class TestRunner {
@@ -56,7 +55,7 @@ export default class TestRunner {
    *   Deck props
    */
   constructor(props = {}) {
-    this.props = Object.assign({}, DEFAULT_DECK_PROPS, props);
+    this.props = {...DEFAULT_DECK_PROPS, ...props};
 
     this.isRunning = false;
     this._testCases = [];
@@ -64,7 +63,11 @@ export default class TestRunner {
 
     this.isHeadless = Boolean(window.browserTestDriver_isHeadless);
 
-    this.testOptions = Object.assign({}, DEFAULT_TEST_OPTIONS);
+    this.testOptions = {...DEFAULT_TEST_OPTIONS};
+  }
+
+  get defaultTestCase() {
+    return DEFAULT_TEST_CASE;
   }
 
   /**
@@ -87,12 +90,11 @@ export default class TestRunner {
     Object.assign(this.testOptions, options);
 
     return new Promise((resolve, reject) => {
-      this.deck = new Deck(
-        Object.assign({}, this.props, {
-          onWebGLInitialized: this._onWebGLInitialized.bind(this),
-          onLoad: resolve
-        })
-      );
+      this.deck = new Deck({
+        ...this.props,
+        onWebGLInitialized: this._onWebGLInitialized.bind(this),
+        onLoad: resolve
+      });
 
       this.isRunning = true;
       this._currentTestCase = null;
@@ -117,8 +119,10 @@ export default class TestRunner {
   /* Lifecycle methods for subclassing */
 
   initTestCase(testCase) {
-    for (const key in DEFAULT_TEST_CASE) {
-      testCase[key] = testCase[key] || DEFAULT_TEST_CASE[key];
+    for (const key in this.defaultTestCase) {
+      if (!(key in testCase)) {
+        testCase[key] = this.defaultTestCase[key];
+      }
     }
     this.testOptions.onTestStart(testCase);
   }
@@ -149,7 +153,6 @@ export default class TestRunner {
 
   _runTest(testCase) {
     return new Promise((resolve, reject) => {
-      const {deck} = this;
       this._currentTestCase = testCase;
       this._next = resolve;
 
@@ -168,17 +171,7 @@ export default class TestRunner {
 
       timeoutId = window.setTimeout(done, testCase.timeout || this.testOptions.timeout);
 
-      deck.setProps(
-        Object.assign({}, this.props, testCase, {
-          onAfterRender: () => {
-            testCase.onAfterRender({
-              deck,
-              layers: deck.layerManager.getLayers(),
-              done
-            });
-          }
-        })
-      );
+      this.runTestCase(testCase, done);
     });
   }
 }

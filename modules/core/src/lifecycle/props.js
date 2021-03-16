@@ -1,4 +1,6 @@
-import assert from '../utils/assert';
+import {PROP_SYMBOLS} from './constants';
+
+const {COMPONENT} = PROP_SYMBOLS;
 
 export function validateProps(props) {
   const propTypes = getPropTypes(props);
@@ -19,7 +21,7 @@ export function diffProps(props, oldProps) {
     newProps: props,
     oldProps,
     propTypes: getPropTypes(props),
-    ignoreProps: {data: null, updateTriggers: null, extensions: null}
+    ignoreProps: {data: null, updateTriggers: null, extensions: null, transitions: null}
   });
 
   // Now check if any data related props have changed
@@ -36,8 +38,27 @@ export function diffProps(props, oldProps) {
     dataChanged: dataChangedReason,
     propsChanged: propsChangedReason,
     updateTriggersChanged: updateTriggersChangedReason,
-    extensionsChanged: diffExtensions(props, oldProps)
+    extensionsChanged: diffExtensions(props, oldProps),
+    transitionsChanged: diffTransitions(props, oldProps)
   };
+}
+
+function diffTransitions(props, oldProps) {
+  if (!props.transitions) {
+    return null;
+  }
+  const result = {};
+  const propTypes = getPropTypes(props);
+
+  for (const key in props.transitions) {
+    const propType = propTypes[key];
+    const type = propType && propType.type;
+    const isTransitionable = type === 'number' || type === 'color' || type === 'array';
+    if (isTransitionable && comparePropValues(props[key], oldProps[key], propType)) {
+      result[key] = true;
+    }
+  }
+  return result;
 }
 
 /**
@@ -50,6 +71,11 @@ export function diffProps(props, oldProps) {
  *   if unequal, returns a string explaining what changed.
  */
 /* eslint-disable max-statements, max-depth, complexity */
+/*
+ * Note: for better performance, this function assumes that both oldProps and newProps
+   inherit the same prototype (defaultProps). That is, if neither object contains own
+   property <key>, assume `oldProps.<key>` and `newProps.<key>` are equal.
+ */
 export function compareProps({
   newProps,
   oldProps,
@@ -57,8 +83,6 @@ export function compareProps({
   propTypes = {},
   triggerName = 'props'
 } = {}) {
-  assert(oldProps !== undefined && newProps !== undefined, 'compareProps args');
-
   // shallow equality => deep equality
   if (oldProps === newProps) {
     return null;
@@ -73,41 +97,31 @@ export function compareProps({
     return `${triggerName} changed shallowly`;
   }
 
-  // Test if new props different from old props
-  for (const key in oldProps) {
+  // Compare explicitly defined new props against old/default values
+  for (const key of Object.keys(newProps)) {
     if (!(key in ignoreProps)) {
-      if (!(key in newProps)) {
-        return `${triggerName}.${key} dropped`;
+      if (!(key in oldProps)) {
+        return `${triggerName}.${key} added`;
       }
-      const newProp = newProps[key];
-      const oldProp = oldProps[key];
-      const propType = propTypes[key];
-
-      // If prop type has an equal function, invoke it
-      let equal = propType && propType.equal;
-      if (equal && !equal(newProp, oldProp, propType)) {
-        return `${triggerName}.${key} changed deeply`;
-      }
-
-      if (!equal) {
-        // If object has an equals function, invoke it
-        equal = newProp && oldProp && newProp.equals;
-        if (equal && !equal.call(newProp, oldProp)) {
-          return `${triggerName}.${key} changed deeply`;
-        }
-      }
-
-      if (!equal && oldProp !== newProp) {
-        return `${triggerName}.${key} changed shallowly`;
+      const changed = comparePropValues(newProps[key], oldProps[key], propTypes[key]);
+      if (changed) {
+        return `${triggerName}.${key} ${changed}`;
       }
     }
   }
 
-  // Test if any new props have been added
-  for (const key in newProps) {
+  // Test if any old props have been dropped
+  for (const key of Object.keys(oldProps)) {
     if (!(key in ignoreProps)) {
-      if (!(key in oldProps)) {
-        return `${triggerName}.${key} added: undefined -> ${newProps[key]}`;
+      if (!(key in newProps)) {
+        return `${triggerName}.${key} dropped`;
+      }
+      if (!Object.hasOwnProperty.call(newProps, key)) {
+        // Compare dropped old prop against default value
+        const changed = comparePropValues(newProps[key], oldProps[key], propTypes[key]);
+        if (changed) {
+          return `${triggerName}.${key} ${changed}`;
+        }
       }
     }
   }
@@ -117,6 +131,27 @@ export function compareProps({
 /* eslint-enable max-statements, max-depth, complexity */
 
 // HELPERS
+function comparePropValues(newProp, oldProp, propType) {
+  // If prop type has an equal function, invoke it
+  let equal = propType && propType.equal;
+  if (equal && !equal(newProp, oldProp, propType)) {
+    return 'changed deeply';
+  }
+
+  if (!equal) {
+    // If object has an equals function, invoke it
+    equal = newProp && oldProp && newProp.equals;
+    if (equal && !equal.call(newProp, oldProp)) {
+      return 'changed deeply';
+    }
+  }
+
+  if (!equal && oldProp !== newProp) {
+    return 'changed shallowly';
+  }
+
+  return null;
+}
 
 // The comparison of the data prop requires special handling
 // the dataComparator should be used if supplied
@@ -211,7 +246,7 @@ function diffUpdateTrigger(props, oldProps, triggerName) {
 }
 
 function getPropTypes(props) {
-  const layer = props._component;
+  const layer = props[COMPONENT];
   const LayerType = layer && layer.constructor;
   return LayerType ? LayerType._propTypes : {};
 }

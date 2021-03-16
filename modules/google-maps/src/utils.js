@@ -1,5 +1,8 @@
-/* global document, google */
+/* global google, document */
 import {Deck} from '@deck.gl/core';
+
+// https://en.wikipedia.org/wiki/Web_Mercator_projection#Formulas
+const MAX_LATITUDE = 85.05113;
 
 /**
  * Get a new deck instance
@@ -7,7 +10,7 @@ import {Deck} from '@deck.gl/core';
  * @param overlay (google.maps.OverlayView) - A maps Overlay instance
  * @param [deck] (Deck) - a previously created instances
  */
-export function createDeckInstance(map, overlay, deck) {
+export function createDeckInstance(map, overlay, deck, props) {
   if (deck) {
     if (deck.props.userData._googleMap === map) {
       return deck;
@@ -18,12 +21,15 @@ export function createDeckInstance(map, overlay, deck) {
 
   const eventListeners = {
     click: null,
+    dblclick: null,
     mousemove: null,
     mouseout: null
   };
 
   deck = new Deck({
-    canvas: createDeckCanvas(overlay),
+    ...props,
+    style: null,
+    parent: getContainer(overlay, props.style),
     initialViewState: {
       longitude: 0,
       latitude: 0,
@@ -46,16 +52,13 @@ export function createDeckInstance(map, overlay, deck) {
   return deck;
 }
 
-function createDeckCanvas(overlay) {
-  const container = overlay.getPanes().overlayLayer;
-  const deckCanvas = document.createElement('canvas');
-  Object.assign(deckCanvas.style, {
-    // map container position is always non-static
-    position: 'absolute'
-  });
-
-  container.appendChild(deckCanvas);
-  return deckCanvas;
+// Create a container that will host the deck canvas and tooltip
+function getContainer(overlay, style) {
+  const container = document.createElement('div');
+  container.style.position = 'absolute';
+  Object.assign(container.style, style);
+  overlay.getPanes().overlayLayer.appendChild(container);
+  return container;
 }
 
 /**
@@ -71,11 +74,9 @@ export function destroyDeckInstance(deck) {
   }
 
   deck.finalize();
-
-  // Remove canvas
-  deck.canvas.parentNode.removeChild(deck.canvas);
 }
 
+/* eslint-disable max-statements */
 /**
  * Get the current view state
  * @param map (google.maps.Map) - The parent Map instance
@@ -105,59 +106,93 @@ export function getViewState(map, overlay) {
   const nwContainerPx = new google.maps.Point(0, 0);
   const nw = projection.fromContainerPixelToLatLng(nwContainerPx);
   const nwDivPx = projection.fromLatLngToDivPixel(nw);
+  let leftOffset = nwDivPx.x;
+  let topOffset = nwDivPx.y;
+
+  // Adjust horizontal offset - position the viewport at the map in the center
+  const mapWidth = projection.getWorldWidth();
+  const mapCount = Math.ceil(width / mapWidth);
+  leftOffset -= Math.floor(mapCount / 2) * mapWidth;
 
   // Compute fractional zoom.
-  const scale = (topRight.x - bottomLeft.x) / width;
-  const zoom = Math.log2(scale) + map.getZoom() - 1;
+  const scale = height ? (bottomLeft.y - topRight.y) / height : 1;
+  // When resizing aggressively, occasionally ne and sw are the same points
+  // See https://github.com/visgl/deck.gl/issues/4218
+  const zoom = Math.log2(scale || 1) + map.getZoom() - 1;
 
   // Compute fractional center.
-  const centerPx = new google.maps.Point(width / 2, height / 2);
+  let centerPx = new google.maps.Point(width / 2, height / 2);
   const centerContainer = projection.fromContainerPixelToLatLng(centerPx);
-  const latitude = centerContainer.lat();
+  let latitude = centerContainer.lat();
   const longitude = centerContainer.lng();
+
+  // Adjust vertical offset - limit latitude
+  if (Math.abs(latitude) > MAX_LATITUDE) {
+    latitude = latitude > 0 ? MAX_LATITUDE : -MAX_LATITUDE;
+    const center = new google.maps.LatLng(latitude, longitude);
+    centerPx = projection.fromLatLngToContainerPixel(center);
+    topOffset += centerPx.y - height / 2;
+  }
 
   return {
     width,
     height,
-    left: nwDivPx.x,
-    top: nwDivPx.y,
+    left: leftOffset,
+    top: topOffset,
     zoom,
     pitch: map.getTilt(),
     latitude,
     longitude
   };
 }
+/* eslint-enable max-statements */
+
+function getEventPixel(event, deck) {
+  if (event.pixel) {
+    return event.pixel;
+  }
+  // event.pixel may not exist when clicking on a POI
+  // https://developers.google.com/maps/documentation/javascript/reference/map#MouseEvent
+  const point = deck.getViewports()[0].project([event.latLng.lng(), event.latLng.lat()]);
+  return {
+    x: point[0],
+    y: point[1]
+  };
+}
 
 // Triggers picking on a mouse event
 function handleMouseEvent(deck, type, event) {
-  let callback;
+  const mockEvent = {
+    type,
+    offsetCenter: getEventPixel(event, deck),
+    srcEvent: event
+  };
+
   switch (type) {
     case 'click':
       // Hack: because we do not listen to pointer down, perform picking now
-      deck._lastPointerDownInfo = deck.pickObject({
-        x: event.pixel.x,
-        y: event.pixel.y
-      });
-      callback = deck._onEvent;
+      deck._lastPointerDownInfo = deck.pickObject(mockEvent.offsetCenter);
+      mockEvent.tapCount = 1;
+      deck._onEvent(mockEvent);
+      break;
+
+    case 'dblclick':
+      mockEvent.type = 'click';
+      mockEvent.tapCount = 2;
+      deck._onEvent(mockEvent);
       break;
 
     case 'mousemove':
-      type = 'pointermove';
-      callback = deck._onPointerMove;
+      mockEvent.type = 'pointermove';
+      deck._onPointerMove(mockEvent);
       break;
 
     case 'mouseout':
-      type = 'pointerleave';
-      callback = deck._onPointerMove;
+      mockEvent.type = 'pointerleave';
+      deck._onPointerMove(mockEvent);
       break;
 
     default:
       return;
   }
-
-  callback({
-    type,
-    offsetCenter: event.pixel,
-    srcEvent: event
-  });
 }

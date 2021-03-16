@@ -1,4 +1,4 @@
-# Installing, Building and Running Examples
+# Installing and Running Examples
 
 ## Installation
 
@@ -19,20 +19,20 @@ The [deck.gl](https://www.npmjs.com/package/deck.gl) module includes all deck.gl
 
 ## Running the Examples
 
-The deck.gl repository contains an [examples folder](https://github.com/uber/deck.gl/tree/master/examples) with a selection of small, standalone examples that could be good starting points for your application.
+The deck.gl repository contains an [examples folder](https://github.com/visgl/deck.gl/tree/master/examples) with a selection of small, standalone examples that could be good starting points for your application.
 
 You should be able to copy these folders to your preferred locations, and get them running simply as follows:
 
 Clone the deck.gl repo, if you haven't already
 
 ```bash
-git clone git@github.com:uber/deck.gl.git
+git clone git@github.com:visgl/deck.gl.git
 ```
 
-For most consistent results, it is recommended that you check out the latest release branch (e.g. `7.0-release`) instead of `master` when running examples.
+For most consistent results, it is recommended that you check out the latest release branch (e.g. `8.0-release`) instead of `master` when running examples.
 
 ```bash
-git checkout 7.0-release
+git checkout 8.0-release
 ```
 
 Change directory to the example you are interested in, e.g.

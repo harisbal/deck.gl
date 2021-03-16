@@ -19,7 +19,6 @@
 // THE SOFTWARE.
 
 import {LayerManager, MapView, DeckRenderer} from '@deck.gl/core';
-import {VertexArrayObject} from '@luma.gl/core';
 
 import {makeSpy} from '@probe.gl/test-utils';
 import gl from './utils/setup-gl';
@@ -36,115 +35,112 @@ function defaultOnError(error, title) {
   }
 }
 
-function safelyCall(title, func, onError) {
-  let error = null;
-  try {
-    func();
-  } catch (e) {
-    error = e;
-  }
-  onError(error, title);
-}
-
 export function testInitializeLayer({layer, viewport = testViewport, onError = defaultOnError}) {
   const layerManager = new LayerManager(gl, {viewport});
+  layerManager.setProps({
+    onError: error => onError(error, `initializing ${layer.id}`)
+  });
 
-  safelyCall(`initializing ${layer.id}`, () => layerManager.setLayers([layer]), onError);
-
-  return null;
-}
-
-export function testUpdateLayer({
-  layer,
-  viewport = testViewport,
-  newProps,
-  onError = defaultOnError
-}) {
-  const layerManager = new LayerManager(gl, {viewport});
-
-  safelyCall(
-    `updating ${layer.id}`,
-    () => {
-      layerManager.setLayers([layer]);
-      layerManager.setLayers([layer.clone(newProps)]);
-    },
-    onError
-  );
+  layerManager.setLayers([layer]);
+  layerManager.finalize();
 
   return null;
 }
 
-export function testDrawLayer({
-  layer,
-  viewport = testViewport,
-  uniforms = {},
-  onError = defaultOnError
-}) {
-  const layerManager = new LayerManager(gl, {viewport});
-  const deckRenderer = new DeckRenderer(gl);
+export function testLayer(opts) {
+  const {Layer, testCases = [], spies = [], onError = defaultOnError} = opts;
 
-  safelyCall(
-    `drawing ${layer.id}`,
-    () => {
-      layerManager.setLayers([layer]);
-      deckRenderer.renderLayers({
-        viewports: [testViewport],
-        layers: layerManager.getLayers(),
-        activateViewport: layerManager.activateViewport
-      });
-    },
-    onError
-  );
+  const resources = setupLayerTests(`testing ${Layer.layerName}`, opts);
 
-  return null;
+  let layer = new Layer();
+  // Run successive update tests
+  for (const testCase of testCases) {
+    // Save old state before update
+    const oldState = {...layer.state};
+
+    const {layer: newLayer, spyMap} = runLayerTestUpdate(testCase, resources, layer, spies);
+
+    runLayerTestPostUpdateCheck(testCase, newLayer, oldState, spyMap);
+
+    // Remove spies
+    Object.keys(spyMap).forEach(k => spyMap[k].reset());
+    layer = newLayer;
+  }
+
+  const error = cleanupAfterLayerTests(resources);
+  if (error) {
+    onError(error, `${Layer.layerName} should delete all resources`);
+  }
 }
 
-export function testLayer({
-  Layer,
-  viewport = testViewport,
-  testCases = [],
-  spies = [],
-  onError = defaultOnError
-}) {
-  // assert(Layer);
+export async function testLayerAsync(opts) {
+  const {Layer, testCases = [], spies = [], onError = defaultOnError} = opts;
 
-  const layerManager = new LayerManager(gl, {viewport});
+  const resources = setupLayerTests(`testing ${Layer.layerName}`, opts);
+
+  let layer = new Layer();
+  // Run successive update tests
+  for (const testCase of testCases) {
+    // Save old state before update
+    const oldState = {...layer.state};
+
+    const {layer: newLayer, spyMap} = runLayerTestUpdate(testCase, resources, layer, spies);
+
+    runLayerTestPostUpdateCheck(testCase, newLayer, oldState, spyMap);
+
+    while (!newLayer.isLoaded) {
+      await update(resources);
+      runLayerTestPostUpdateCheck(testCase, newLayer, oldState, spyMap);
+    }
+
+    // Remove spies
+    Object.keys(spyMap).forEach(k => spyMap[k].reset());
+    layer = newLayer;
+  }
+
+  const error = cleanupAfterLayerTests(resources);
+  if (error) {
+    onError(error, `${Layer.layerName} should delete all resources`);
+  }
+}
+
+function setupLayerTests(
+  testTitle,
+  {viewport = testViewport, timeline = null, onError = defaultOnError}
+) {
+  const oldResourceCounts = getResourceCounts();
+
+  const layerManager = new LayerManager(gl, {viewport, timeline});
   const deckRenderer = new DeckRenderer(gl);
 
   layerManager.context.animationProps = {
     time: 0
   };
 
-  const initialProps = testCases[0].props;
-  const layer = new Layer(initialProps);
+  const props = {
+    onError: error => onError(error, testTitle)
+  };
+  layerManager.setProps(props);
+  deckRenderer.setProps(props);
 
-  const oldResourceCounts = getResourceCounts();
+  return {layerManager, deckRenderer, oldResourceCounts};
+}
 
-  safelyCall(`initializing ${layer.id}`, () => layerManager.setLayers([layer]), onError);
-
-  runLayerTests(layerManager, deckRenderer, layer, testCases, spies, onError);
-
-  safelyCall(`finalizing ${layer.id}`, () => layerManager.setLayers([]), onError);
-
-  // Edge case handling: when VertexArrayObject is not supported, we create a
-  // constant buffer for attribute zero which is not deleted with the program
-  // TODO - fix in luma?
-  if (!VertexArrayObject.isSupported(gl) && VertexArrayObject.getDefaultArray(gl).buffer) {
-    VertexArrayObject.getDefaultArray(gl).delete();
-  }
+function cleanupAfterLayerTests({layerManager, deckRenderer, oldResourceCounts}) {
+  layerManager.setLayers([]);
+  layerManager.finalize();
+  deckRenderer.finalize();
 
   const resourceCounts = getResourceCounts();
 
   for (const resourceName in resourceCounts) {
     if (resourceCounts[resourceName] !== oldResourceCounts[resourceName]) {
-      onError(
-        new Error(
-          `${resourceCounts[resourceName] - oldResourceCounts[resourceName]} ${resourceName}s`
-        ),
-        `${layer.id} should delete all ${resourceName}s`
+      return new Error(
+        `${resourceCounts[resourceName] - oldResourceCounts[resourceName]} ${resourceName}s`
       );
     }
   }
+  return null;
 }
 
 function getResourceCounts() {
@@ -166,63 +162,82 @@ function injectSpies(layer, spies) {
   return spyMap;
 }
 
-/* eslint-disable max-params, no-loop-func */
-function runLayerTests(layerManager, deckRenderer, layer, testCases, spies, onError) {
-  let combinedProps = {};
-
-  // Run successive update tests
-  for (let i = 0; i < testCases.length; i++) {
-    const testCase = testCases[i];
-    const {props, updateProps, onBeforeUpdate, onAfterUpdate} = testCase;
-
-    spies = testCase.spies || spies;
-
-    // Test case can reset the props on every iteration
-    if (props) {
-      combinedProps = Object.assign({}, props);
-    }
-    // Test case can override with new props on every iteration
-    if (updateProps) {
-      Object.assign(combinedProps, updateProps);
-    }
-
-    // copy old state before update
-    const oldState = Object.assign({}, layer.state);
-
-    if (onBeforeUpdate) {
-      onBeforeUpdate({layer, testCase});
-    }
-
-    layer = layer.clone(combinedProps);
-    // Create a map of spies that the test case can inspect
-    const spyMap = injectSpies(layer, spies);
-
-    safelyCall(`updating ${layer.id}`, () => layerManager.setLayers([layer]), onError);
-
-    // call draw layer
-    safelyCall(
-      `drawing ${layer.id}`,
-      () =>
-        deckRenderer.renderLayers({
-          viewports: [testViewport],
-          layers: layerManager.getLayers(),
-          activateViewport: layerManager.activateViewport
-        }),
-      onError
-    );
-
+function runLayerTestPostUpdateCheck(testCase, newLayer, oldState, spyMap) {
+  // assert on updated layer
+  if (testCase.onAfterUpdate) {
     // layer manager should handle match subLayer and tranfer state and props
     // here we assume subLayer matches copy over the new props from a new subLayer
-    const subLayers = layer.isComposite ? layer.getSubLayers() : [];
+    const subLayers = newLayer.isComposite ? newLayer.getSubLayers() : [];
     const subLayer = subLayers.length && subLayers[0];
 
-    // assert on updated layer
-    if (onAfterUpdate) {
-      onAfterUpdate({testCase, layer, oldState, subLayers, subLayer, spies: spyMap});
-    }
-
-    // Remove spies
-    Object.keys(spyMap).forEach(k => spyMap[k].reset());
+    testCase.onAfterUpdate({
+      testCase,
+      layer: newLayer,
+      oldState,
+      subLayers,
+      subLayer,
+      spies: spyMap
+    });
   }
 }
-/* eslint-enable parameters, no-loop-func */
+
+function runLayerTestUpdate(testCase, {layerManager, deckRenderer}, layer, spies) {
+  const {props, updateProps, onBeforeUpdate, viewport = layerManager.context.viewport} = testCase;
+
+  if (onBeforeUpdate) {
+    onBeforeUpdate({layer, testCase});
+  }
+
+  if (props) {
+    // Test case can reset the props on every iteration
+    layer = new layer.constructor(props);
+  } else if (updateProps) {
+    // Test case can override with new props on every iteration
+    layer = layer.clone(updateProps);
+  }
+
+  // Create a map of spies that the test case can inspect
+  spies = testCase.spies || spies;
+  const spyMap = injectSpies(layer, spies);
+  const drawLayers = () => {
+    deckRenderer.renderLayers({
+      viewports: [viewport],
+      layers: layerManager.getLayers(),
+      onViewportActive: layerManager.activateViewport
+    });
+  };
+
+  layerManager.setLayers([layer]);
+  drawLayers();
+
+  // clear update flags set by viewport change, if any
+  if (layerManager.needsUpdate()) {
+    layerManager.updateLayers();
+    drawLayers();
+  }
+
+  return {layer, spyMap};
+}
+
+/* global setTimeout */
+function update({layerManager, deckRenderer}) {
+  return new Promise(resolve => {
+    const onAnimationFrame = () => {
+      if (layerManager.needsUpdate()) {
+        layerManager.updateLayers();
+
+        deckRenderer.renderLayers({
+          viewports: [layerManager.context.viewport],
+          layers: layerManager.getLayers(),
+          onViewportActive: layerManager.activateViewport
+        });
+        resolve();
+        return;
+      }
+
+      setTimeout(onAnimationFrame, 50);
+    };
+
+    onAnimationFrame();
+  });
+}

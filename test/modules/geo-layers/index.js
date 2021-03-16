@@ -26,7 +26,8 @@ import {
   H3ClusterLayer,
   S2Layer,
   TileLayer,
-  TripsLayer
+  TripsLayer,
+  TerrainLayer
 } from '@deck.gl/geo-layers';
 
 test('Top-level imports', t => {
@@ -36,6 +37,7 @@ test('Top-level imports', t => {
   t.ok(H3ClusterLayer, 'H3ClusterLayer symbol imported');
   t.ok(TileLayer, 'TileLayer symbol imported');
   t.ok(TripsLayer, 'TripsLayer symbol imported');
+  t.ok(TerrainLayer, 'TerrainLayer symbol imported');
   t.end();
 });
 
@@ -44,3 +46,6 @@ import './s2-layer.spec';
 import './trips-layer.spec';
 import './great-circle-layer.spec';
 import './h3-layers.spec';
+import './tile-3d-layer';
+import './terrain-layer.spec';
+import './mvt-layer.spec';

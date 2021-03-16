@@ -1,8 +1,8 @@
 {
-  "name": "deck.gl",
-  "description": "A suite of 3D-enabled data visualization overlays, suitable for react-map-gl",
+  "name": "deck.gl-monorepo",
+  "description": "WebGL-powered visualization framework for large-scale datasets",
   "license": "MIT",
-  "private": "true",
+  "private": true,
   "keywords": [
     "webgl",
     "visualization",
@@ -11,20 +11,23 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/uber/deck.gl.git"
+    "url": "https://github.com/visgl/deck.gl.git"
   },
   "workspaces": [
     "modules/*"
   ],
+  "resolutions": {
+    "acorn": "7.4.1"
+  },
   "scripts": {
     "bootstrap": "PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true yarn && ocular-bootstrap",
     "clean": "ocular-clean",
-    "build": "ocular-clean && ocular-build",
-    "version": "ocular-build core,main",
+    "build": "ocular-clean && ocular-build && lerna run build",
+    "version": "ocular-build core",
     "lint": "ocular-lint",
     "cover": "ocular-test cover",
     "publish": "ocular-publish",
-    "start": "open http://uber.github.io/deck.gl/#/documentation/getting-started/installation?section=running-the-examples",
+    "start": "open https://deck.gl/docs/get-started/getting-started",
     "test": "ocular-test",
     "test-fast": "ocular-test fast",
     "test-node": "ocular-test node",
@@ -41,11 +44,15 @@
     "jsdom": false
   },
   "devDependencies": {
-    "@luma.gl/effects": "^7.2.0-alpha.1",
-    "@probe.gl/bench": "^3.0.2",
-    "@probe.gl/test-utils": "^3.0.2",
+    "@babel/register": "^7.13.0",
+    "@loaders.gl/csv": "^3.0.0-alpha",
+    "@loaders.gl/polyfills": "^3.0.0-alpha",
+    "@luma.gl/test-utils": "^8.5.0-alpha.1",
+    "@probe.gl/bench": "^3.3.1",
+    "@probe.gl/test-utils": "^3.3.1",
+    "abortcontroller-polyfill": "^1.5.0",
     "babel-loader": "^8.0.0",
-    "babel-plugin-inline-webgl-constants": "^1.0.0",
+    "babel-plugin-inline-webgl-constants": "^1.0.3",
     "babel-plugin-remove-glsl-comments": "^0.1.0",
     "babel-preset-minify": "^0.5.0",
     "canvas": "^2.6.0",
@@ -54,22 +61,23 @@
     "eslint-config-uber-jsx": "^3.3.3",
     "eslint-plugin-import": "^2.16.0",
     "eslint-plugin-react": "^7.10",
-    "gl": "^4.3.3",
+    "gl": "^4.9.0",
     "glsl-transpiler": "^1.8.3",
     "jsdom": "^15.0.0",
-    "ocular-dev-tools": "0.0.27",
-    "png.js": "^0.1.1",
+    "ocular-dev-tools": "^0.3.0",
     "pre-commit": "^1.2.2",
     "pre-push": "^0.1.1",
     "raw-loader": "^0.5.1",
     "react": "^16.2.0",
     "react-dom": "^16.2.0",
-    "react-map-gl": "^4.1.2",
-    "reify": "^0.18.1"
+    "react-map-gl": "^5.1.0",
+    "s2-geometry": "^1.2.10"
   },
   "pre-commit": [
     "test-fast",
     "bindings-precommit-tests"
-  ]
+  ],
+  "engines": {
+    "node": ">=14"
+  }
 }
-

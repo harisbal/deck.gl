@@ -32,7 +32,11 @@ export default class TransitionInterpolator {
    */
   arePropsEqual(currentProps, nextProps) {
     for (const key of this._propsToCompare || Object.keys(nextProps)) {
-      if (!equals(currentProps[key], nextProps[key])) {
+      if (
+        !(key in currentProps) ||
+        !(key in nextProps) ||
+        !equals(currentProps[key], nextProps[key])
+      ) {
         return false;
       }
     }
@@ -76,7 +80,17 @@ export default class TransitionInterpolator {
    * @returns {object} - a list of interpolated viewport props
    */
   interpolateProps(startProps, endProps, t) {
-    assert(false, 'interpolateProps is not implemented');
+    return endProps;
+  }
+
+  /**
+   * Returns transition duration
+   * @param startProps {object} - a list of starting viewport props
+   * @param endProps {object} - a list of target viewport props
+   * @returns {Number} - transition duration in milliseconds
+   */
+  getDuration(startProps, endProps) {
+    return endProps.transitionDuration;
   }
 
   _checkRequiredProps(props) {

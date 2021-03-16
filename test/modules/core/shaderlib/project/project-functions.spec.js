@@ -20,7 +20,7 @@
 
 import test from 'tape-catch';
 
-import {COORDINATE_SYSTEM, WebMercatorViewport} from 'deck.gl';
+import {COORDINATE_SYSTEM, WebMercatorViewport, OrthographicView} from 'deck.gl';
 import {project} from '@deck.gl/core/shaderlib';
 import {projectPosition} from '@deck.gl/core/shaderlib/project/project-functions';
 import {equals, config} from 'math.gl';
@@ -41,31 +41,56 @@ const TEST_COORDINATE_ORIGIN = [-122.45, 37.78, 0];
 
 const TEST_CASES = [
   {
-    title: 'LNGLAT',
+    title: 'LNGLAT:WEB_MERCATOR',
     position: [-70, 41, 1000],
     params: {
       viewport: TEST_VIEWPORT_2,
-      coordinateSystem: COORDINATE_SYSTEM.LNGLAT
+      coordinateSystem: COORDINATE_SYSTEM.DEFAULT
     },
-    result: [40049.77777777778, 49142.30385463462, 4.318949934705221]
+    result: [156.44444444444446, 320.0378755678335, 0.01687089818244227]
   },
   {
-    title: 'LNGLAT_AUTO_OFFSET',
+    title: 'LNGLAT:WEB_MERCATOR_AUTO_OFFSET',
     position: [-122.46, 37.8, 1000],
     params: {
       viewport: TEST_VIEWPORT,
-      coordinateSystem: COORDINATE_SYSTEM.LNGLAT
+      coordinateSystem: COORDINATE_SYSTEM.DEFAULT
     },
-    result: [-233.08799999998882, -589.7566118892282, 265.21129170127364]
+    result: [-0.014226562499999318, 0.03599588695612965, 0.016187212628251565]
   },
   {
-    title: 'LNGLAT_DEPRECATED',
-    position: [-122.465, 37.8, 1000],
+    title: 'CARTESIAN:IDENTITY',
+    position: [-10, 10, 10],
+    params: {
+      viewport: new OrthographicView().makeViewport({
+        viewState: {
+          target: [3.1416, 2.7183, 0],
+          zoom: 4
+        }
+      }),
+      coordinateSystem: COORDINATE_SYSTEM.DEFAULT
+    },
+    result: [-13.1416, 7.2817, 10]
+  },
+  {
+    title: 'CARTESIAN:WEB_MERCATOR',
+    position: [256, 256, 0],
+    params: {
+      viewport: TEST_VIEWPORT_2,
+      coordinateSystem: COORDINATE_SYSTEM.CARTESIAN,
+      coordinateOrigin: [0, 0, 0]
+    },
+    result: [256, 256, 0]
+  },
+  {
+    title: 'CARTESIAN:WEB_MERCATOR_AUTO_OFFSET',
+    position: [0, 0, 0],
     params: {
       viewport: TEST_VIEWPORT,
-      coordinateSystem: COORDINATE_SYSTEM.LNGLAT_DEPRECATED
+      coordinateSystem: COORDINATE_SYSTEM.CARTESIAN,
+      coordinateOrigin: [256, 256, 0]
     },
-    result: [1340662.6702222219, 3241632.548103794, 265.13951782419525]
+    result: [174.15110778808594, -58.11044311523443, 0]
   },
   {
     title: 'LNGLAT_OFFSETS',
@@ -75,7 +100,7 @@ const TEST_CASES = [
       coordinateSystem: COORDINATE_SYSTEM.LNGLAT_OFFSETS,
       coordinateOrigin: [-122.5, 38.8]
     },
-    result: [-1165.0844444443937, -1794.7162351408042, 13.45595530515798]
+    result: [-0.07111111111110802, 0.10954078583623073, 0.0008212863345433337]
   },
   {
     title: 'METER_OFFSETS',
@@ -85,7 +110,7 @@ const TEST_CASES = [
       coordinateSystem: COORDINATE_SYSTEM.METER_OFFSETS,
       coordinateOrigin: [-122.5, 38.8]
     },
-    result: [-26.890254910569638, -80.66771063674241, 13.445127479654396]
+    result: [-0.0016412509100689476, 0.00492356632304336, 0.0008206254565218747]
   },
   {
     title: 'LNGLAT to METER_OFFSETS',
@@ -96,7 +121,7 @@ const TEST_CASES = [
       coordinateOrigin: TEST_COORDINATE_ORIGIN,
       fromCoordinateSystem: COORDINATE_SYSTEM.LNGLAT
     },
-    result: [-233.01688888831995, -589.7206230699085, 265.21129170127364]
+    result: [-0.014222222222187497, 0.03599369037291922, 0.016187212628251565]
   },
   {
     title: 'LNGLAT to LNGLAT_OFFSETS',
@@ -107,7 +132,7 @@ const TEST_CASES = [
       coordinateOrigin: TEST_COORDINATE_ORIGIN,
       fromCoordinateSystem: COORDINATE_SYSTEM.LNGLAT
     },
-    result: [-233.01688888831995, -589.7206230699085, 265.21129170127364]
+    result: [-0.014222222222187497, 0.03599369037291922, 0.016187212628251565]
   }
 ];
 

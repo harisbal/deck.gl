@@ -7,8 +7,6 @@ import {
   // KMLLayer
 } from '@deck.gl/geo-layers';
 
-import {GPUGridLayer} from '@deck.gl/aggregation-layers';
-import {GridLayer} from '@deck.gl/aggregation-layers';
 import * as h3 from 'h3-js';
 
 import {registerLoaders} from '@loaders.gl/core';
@@ -17,34 +15,6 @@ import {PLYLoader} from '@loaders.gl/ply';
 import * as dataSamples from '../data-samples';
 
 registerLoaders([PLYLoader]);
-
-const GRID_LAYER_PROPS = {
-  getData: () => dataSamples.points,
-  props: {
-    id: 'gpu-grid-layer',
-    cellSize: 200,
-    opacity: 1,
-    extruded: true,
-    pickable: false,
-    getPosition: d => d.COORDINATES
-  }
-};
-
-const GPUGridLayerExample = Object.assign({}, {layer: GPUGridLayer}, GRID_LAYER_PROPS);
-const GridLayerExample = Object.assign({}, {layer: GridLayer}, GRID_LAYER_PROPS);
-
-const GPUGridLayerPerfExample = (id, getData) => ({
-  layer: GPUGridLayer,
-  getData,
-  props: {
-    id: `gpuGridLayerPerf-${id}`,
-    cellSize: 200,
-    opacity: 1,
-    extruded: true,
-    pickable: false,
-    getPosition: d => d
-  }
-});
 
 const GreatCircleLayerExample = {
   layer: GreatCircleLayer,
@@ -88,9 +58,10 @@ const H3HexagonLayerExample = {
   layer: H3HexagonLayer,
   props: {
     // data: h3.kRing('891c0000003ffff', 4), // Pentagon sample, [-143.478, 50.103]
+    // data: h3.compact(h3.kRing('882830829bfffff', 8)), // Multi-resolution
     data: h3.kRing('882830829bfffff', 4), // SF
     getHexagon: d => d,
-    getColor: (d, {index}) => [255, index * 5, 0],
+    getFillColor: (d, {index}) => [255, index * 5, 0],
     getElevation: d => Math.random() * 1000
   }
 };
@@ -114,8 +85,8 @@ const TripsLayerExample = {
   props: {
     id: 'trips-layer',
     data: dataSamples.SFTrips,
-    getPath: d =>
-      d.waypoints.map(p => [p.coordinates[0], p.coordinates[1], p.timestamp - 1554772579000]),
+    getPath: d => d.waypoints.map(p => p.coordinates),
+    getTimestamps: d => d.waypoints.map(p => p.timestamp - 1554772579000),
     getColor: [253, 128, 93],
     opacity: 0.8,
     widthMinPixels: 5,
@@ -133,11 +104,5 @@ export default {
     H3HexagonLayer: H3HexagonLayerExample,
     GreatCircleLayer: GreatCircleLayerExample,
     TripsLayer: TripsLayerExample
-  },
-  'Experimental Core Layers': {
-    GPUGridLayer: GPUGridLayerExample,
-    GridLayer: GridLayerExample,
-    'GPUGridLayer (1M)': GPUGridLayerPerfExample('1M', dataSamples.getPoints1M),
-    'GPUGridLayer (5M)': GPUGridLayerPerfExample('5M', dataSamples.getPoints5M)
   }
 };

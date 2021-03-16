@@ -18,18 +18,18 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-import './base-attribute.spec';
-import './attribute.spec';
-import './attribute-manager.spec';
-import './attribute-transition-manager.spec';
-import './attribute-transition-utils.spec';
+import './attribute';
+import './resource';
 import './deck.spec';
 import './deck-picker.spec';
 import './layer.spec';
 import './composite-layer.spec';
 import './layer-extension.spec';
 import './layer-manager.spec';
+import './tooltip.spec';
 import './transition-manager.spec';
-import './seer-integration.spec';
+import './uniform-transition-manager.spec';
 import './effect.spec';
 import './effect-manager.spec';
+import './picking.spec';
+import './view-manager.spec';

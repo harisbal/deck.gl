@@ -7,7 +7,7 @@
 
 The base `Layer` class (which is inherited by all layers) supports a `parameters` property that allows applications to specify the state of WebGL parameters such as blending mode, depth testing etc. This can provide signigicant extra control over rendering.
 
-The new `parameters` prop leverages the luma.gl v4 [setParameters](http://uber.github.io/luma.gl/#/documentation/api-reference/get-parameter) API, which allows all WebGL parameters to be specified as keys in a single parameter object.
+The new `parameters` prop leverages the luma.gl v4 [setParameters](https://luma.gl/docs/api-reference/gltools/parameter-setting) API, which allows all WebGL parameters to be specified as keys in a single parameter object.
 
 
 ## z-fighting and Depth Testing
@@ -51,4 +51,23 @@ If this is an issue, set the `isolation` CSS prop on the `DeckGL` parent element
 .deckgl-parent-class {
   isolation: 'isolate';
 }
+```
+
+## Optimization for Mobile
+
+### Experimental Memory Usage Controls
+
+The `Deck` class supports the following experimental props to aggressively reduce memory usage on memory-restricted devices:
+
+- [_pickable](/docs/api-reference/core/deck.md#_pickable)
+- [_typedArrayManagerProps](/docs/api-reference/core/deck.md#_typedArrayManagerProps)
+
+The app can sacrefice certain features and/or runtime performance in exchange for a smaller memory footprint:
+
+```js
+new Deck({
+  // ...
+  _pickable: false,
+  _typedArrayManagerProps: isMobile ? {overAlloc: 1, poolSize: 0} : null
+})
 ```

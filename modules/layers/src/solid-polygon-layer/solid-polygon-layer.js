@@ -18,9 +18,9 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-import {Layer} from '@deck.gl/core';
+import {Layer, project32, gouraudLighting, picking, COORDINATE_SYSTEM} from '@deck.gl/core';
 import GL from '@luma.gl/constants';
-import {Model, Geometry, hasFeature, FEATURES, PhongMaterial} from '@luma.gl/core';
+import {Model, Geometry, hasFeatures, FEATURES} from '@luma.gl/core';
 
 // Polygon geometry generation is managed by the polygon tesselator
 import PolygonTesselator from './polygon-tesselator';
@@ -30,7 +30,6 @@ import vsSide from './solid-polygon-layer-vertex-side.glsl';
 import fs from './solid-polygon-layer-fragment.glsl';
 
 const DEFAULT_COLOR = [0, 0, 0, 255];
-const defaultMaterial = new PhongMaterial();
 
 const defaultProps = {
   filled: true,
@@ -38,6 +37,8 @@ const defaultProps = {
   extruded: false,
   // Whether to draw a GL.LINES wireframe of the polygon
   wireframe: false,
+  _normalize: true,
+  _windingOrder: 'CW',
 
   // elevation multiplier
   elevationScale: {type: 'number', min: 0, value: 1},
@@ -51,7 +52,7 @@ const defaultProps = {
   getLineColor: {type: 'accessor', value: DEFAULT_COLOR},
 
   // Optional settings for 'lighting' shader module
-  material: defaultMaterial
+  material: true
 };
 
 const ATTRIBUTE_TRANSITION = {
@@ -61,21 +62,36 @@ const ATTRIBUTE_TRANSITION = {
 };
 
 export default class SolidPolygonLayer extends Layer {
-  getShaders(vs) {
+  getShaders(type) {
     return super.getShaders({
-      vs,
+      vs: type === 'top' ? vsTop : vsSide,
       fs,
-      defines: {},
-      modules: ['project32', 'gouraud-lighting', 'picking']
+      defines: {
+        RING_WINDING_ORDER_CW: !this.props._normalize && this.props._windingOrder === 'CCW' ? 0 : 1
+      },
+      modules: [project32, gouraudLighting, picking]
     });
   }
 
+  get wrapLongitude() {
+    return false;
+  }
+
   initializeState() {
-    const {gl} = this.context;
+    const {gl, viewport} = this.context;
+    let {coordinateSystem} = this.props;
+    if (viewport.isGeospatial && coordinateSystem === COORDINATE_SYSTEM.DEFAULT) {
+      coordinateSystem = COORDINATE_SYSTEM.LNGLAT;
+    }
+
     this.setState({
       numInstances: 0,
       polygonTesselator: new PolygonTesselator({
-        IndexType: !gl || hasFeature(gl, FEATURES.ELEMENT_INDEX_UINT32) ? Uint32Array : Uint16Array
+        // Lnglat coordinates are usually projected non-linearly, which affects tesselation results
+        // Provide a preproject function if the coordinates are in lnglat
+        preproject: coordinateSystem === COORDINATE_SYSTEM.LNGLAT && viewport.projectFlat,
+        fp64: this.use64bitPositions(),
+        IndexType: !gl || hasFeatures(gl, FEATURES.ELEMENT_INDEX_UINT32) ? Uint32Array : Uint16Array
       })
     });
 
@@ -89,40 +105,23 @@ export default class SolidPolygonLayer extends Layer {
       indices: {size: 1, isIndexed: true, update: this.calculateIndices, noAlloc},
       positions: {
         size: 3,
+        type: GL.DOUBLE,
+        fp64: this.use64bitPositions(),
         transition: ATTRIBUTE_TRANSITION,
         accessor: 'getPolygon',
         update: this.calculatePositions,
         noAlloc,
         shaderAttributes: {
           positions: {
-            offset: 0,
+            vertexOffset: 0,
             divisor: 0
           },
           instancePositions: {
-            offset: 0,
+            vertexOffset: 0,
             divisor: 1
           },
           nextPositions: {
-            offset: 12,
-            divisor: 1
-          }
-        }
-      },
-      positions64xyLow: {
-        size: 2,
-        update: this.calculatePositionsLow,
-        noAlloc,
-        shaderAttributes: {
-          positions64xyLow: {
-            offset: 0,
-            divisor: 0
-          },
-          instancePositions64xyLow: {
-            offset: 0,
-            divisor: 1
-          },
-          nextPositions64xyLow: {
-            offset: 8,
+            vertexOffset: 1,
             divisor: 1
           }
         }
@@ -149,8 +148,9 @@ export default class SolidPolygonLayer extends Layer {
       },
       fillColors: {
         alias: 'colors',
-        size: 4,
+        size: this.props.colorFormat.length,
         type: GL.UNSIGNED_BYTE,
+        normalized: true,
         transition: ATTRIBUTE_TRANSITION,
         accessor: 'getFillColor',
         defaultValue: DEFAULT_COLOR,
@@ -165,8 +165,9 @@ export default class SolidPolygonLayer extends Layer {
       },
       lineColors: {
         alias: 'colors',
-        size: 4,
+        size: this.props.colorFormat.length,
         type: GL.UNSIGNED_BYTE,
+        normalized: true,
         transition: ATTRIBUTE_TRANSITION,
         accessor: 'getLineColor',
         defaultValue: DEFAULT_COLOR,
@@ -182,7 +183,8 @@ export default class SolidPolygonLayer extends Layer {
       pickingColors: {
         size: 3,
         type: GL.UNSIGNED_BYTE,
-        accessor: (object, {index, target: value}) => this.encodePickingColor(index, value),
+        accessor: (object, {index, target: value}) =>
+          this.encodePickingColor(object && object.__source ? object.__source.index : index, value),
         shaderAttributes: {
           pickingColors: {
             divisor: 0
@@ -196,14 +198,44 @@ export default class SolidPolygonLayer extends Layer {
     /* eslint-enable max-len */
   }
 
+  getPickingInfo(params) {
+    const info = super.getPickingInfo(params);
+    const {index} = info;
+    const {data} = this.props;
+
+    // Check if data comes from a composite layer, wrapped with getSubLayerRow
+    if (data[0] && data[0].__source) {
+      // index decoded from picking color refers to the source index
+      info.object = data.find(d => d.__source.index === index);
+    }
+    return info;
+  }
+
+  disablePickingIndex(objectIndex) {
+    const {data} = this.props;
+
+    // Check if data comes from a composite layer, wrapped with getSubLayerRow
+    if (data[0] && data[0].__source) {
+      // index decoded from picking color refers to the source index
+      for (let i = 0; i < data.length; i++) {
+        if (data[i].__source.index === objectIndex) {
+          this._disablePickingIndex(i);
+        }
+      }
+    } else {
+      this._disablePickingIndex(objectIndex);
+    }
+  }
+
   draw({uniforms}) {
     const {extruded, filled, wireframe, elevationScale} = this.props;
     const {topModel, sideModel, polygonTesselator} = this.state;
 
-    const renderUniforms = Object.assign({}, uniforms, {
+    const renderUniforms = {
+      ...uniforms,
       extruded: Boolean(extruded),
       elevationScale
-    });
+    };
 
     // Note: the order is important
     if (sideModel) {
@@ -220,7 +252,7 @@ export default class SolidPolygonLayer extends Layer {
     }
 
     if (topModel) {
-      topModel.setVertexCount(polygonTesselator.get('indices').length);
+      topModel.setVertexCount(polygonTesselator.vertexCount);
       topModel.setUniforms(renderUniforms).draw();
     }
   }
@@ -239,9 +271,7 @@ export default class SolidPolygonLayer extends Layer {
       props.extruded !== oldProps.extruded;
 
     if (regenerateModels) {
-      if (this.state.models) {
-        this.state.models.forEach(model => model.delete());
-      }
+      this.state.models?.forEach(model => model.delete());
 
       this.setState(this._getModels(this.context.gl));
       attributeManager.invalidateAll();
@@ -258,17 +288,24 @@ export default class SolidPolygonLayer extends Layer {
     // tessellator needs to be invoked
     if (geometryConfigChanged) {
       const {polygonTesselator} = this.state;
+      const buffers = props.data.attributes || {};
       polygonTesselator.updateGeometry({
         data: props.data,
+        normalize: props._normalize,
+        geometryBuffer: buffers.getPolygon,
+        buffers,
         getGeometry: props.getPolygon,
         positionFormat: props.positionFormat,
+        wrapLongitude: props.wrapLongitude,
+        // TODO - move the flag out of the viewport
+        resolution: this.context.viewport.resolution,
         fp64: this.use64bitPositions(),
         dataChanged: changeFlags.dataChanged
       });
 
       this.setState({
         numInstances: polygonTesselator.instanceCount,
-        bufferLayout: polygonTesselator.bufferLayout
+        startIndices: polygonTesselator.vertexStarts
       });
 
       if (!changeFlags.dataChanged) {
@@ -286,48 +323,42 @@ export default class SolidPolygonLayer extends Layer {
     let sideModel;
 
     if (filled) {
-      const shaders = this.getShaders(vsTop);
+      const shaders = this.getShaders('top');
       shaders.defines.NON_INSTANCED_MODEL = 1;
 
-      topModel = new Model(
-        gl,
-        Object.assign({}, shaders, {
-          id: `${id}-top`,
-          drawMode: GL.TRIANGLES,
-          attributes: {
-            vertexPositions: new Float32Array([0, 1])
-          },
-          uniforms: {
-            isWireframe: false,
-            isSideVertex: false
-          },
-          vertexCount: 0,
-          isIndexed: true,
-          shaderCache: this.context.shaderCache
-        })
-      );
+      topModel = new Model(gl, {
+        ...shaders,
+        id: `${id}-top`,
+        drawMode: GL.TRIANGLES,
+        attributes: {
+          vertexPositions: new Float32Array([0, 1])
+        },
+        uniforms: {
+          isWireframe: false,
+          isSideVertex: false
+        },
+        vertexCount: 0,
+        isIndexed: true
+      });
     }
     if (extruded) {
-      sideModel = new Model(
-        gl,
-        Object.assign({}, this.getShaders(vsSide), {
-          id: `${id}-side`,
-          geometry: new Geometry({
-            drawMode: GL.LINES,
-            vertexCount: 4,
-            attributes: {
-              // top right - top left - bootom left - bottom right
-              vertexPositions: {
-                size: 2,
-                value: new Float32Array([1, 1, 0, 1, 0, 0, 1, 0])
-              }
+      sideModel = new Model(gl, {
+        ...this.getShaders('side'),
+        id: `${id}-side`,
+        geometry: new Geometry({
+          drawMode: GL.LINES,
+          vertexCount: 4,
+          attributes: {
+            // top right - top left - bootom left - bottom right
+            vertexPositions: {
+              size: 2,
+              value: new Float32Array([1, 0, 0, 0, 0, 1, 1, 1])
             }
-          }),
-          instanceCount: 0,
-          isInstanced: 1,
-          shaderCache: this.context.shaderCache
-        })
-      );
+          }
+        }),
+        instanceCount: 0,
+        isInstanced: 1
+      });
 
       sideModel.userData.excludeAttributes = {indices: true};
     }
@@ -341,47 +372,18 @@ export default class SolidPolygonLayer extends Layer {
 
   calculateIndices(attribute) {
     const {polygonTesselator} = this.state;
-    attribute.bufferLayout = polygonTesselator.indexLayout;
+    attribute.startIndices = polygonTesselator.indexStarts;
     attribute.value = polygonTesselator.get('indices');
   }
 
   calculatePositions(attribute) {
     const {polygonTesselator} = this.state;
-    attribute.bufferLayout = polygonTesselator.bufferLayout;
+    attribute.startIndices = polygonTesselator.vertexStarts;
     attribute.value = polygonTesselator.get('positions');
-  }
-  calculatePositionsLow(attribute) {
-    const isFP64 = this.use64bitPositions();
-    attribute.constant = !isFP64;
-
-    if (!isFP64) {
-      attribute.value = new Float32Array(2);
-      return;
-    }
-
-    attribute.value = this.state.polygonTesselator.get('positions64xyLow');
   }
 
   calculateVertexValid(attribute) {
     attribute.value = this.state.polygonTesselator.get('vertexValid');
-  }
-
-  clearPickingColor(color) {
-    const pickedPolygonIndex = this.decodePickingColor(color);
-    const {bufferLayout} = this.state.polygonTesselator;
-    const numVertices = bufferLayout[pickedPolygonIndex];
-
-    let startInstanceIndex = 0;
-    for (let polygonIndex = 0; polygonIndex < pickedPolygonIndex; polygonIndex++) {
-      startInstanceIndex += bufferLayout[polygonIndex];
-    }
-
-    const {pickingColors} = this.getAttributeManager().attributes;
-
-    const {value} = pickingColors;
-    const endInstanceIndex = startInstanceIndex + numVertices;
-    value.fill(0, startInstanceIndex * 3, endInstanceIndex * 3);
-    pickingColors.update({value});
   }
 }
 

@@ -22,15 +22,35 @@
 import TestRunner from './test-runner';
 import {getBoundingBoxInPage} from './utils/dom';
 
+const DEFAULT_TEST_OPTIONS = {
+  imageDiffOptions: {}
+};
+
+const DEFAULT_TEST_CASE = {
+  name: 'Unnamed snapshot test',
+  props: {},
+  onBeforeRender: ({deck, layers}) => {
+    // eslint-disable-line
+  },
+  onAfterRender: ({deck, layers, done}) => {
+    if (layers.every(layer => layer.isLoaded)) {
+      done(); // eslint-disable-line
+    }
+  },
+  goldenImage: ''
+};
+
 export default class SnapshotTestRunner extends TestRunner {
   constructor(props) {
     super(props);
 
     this.isDiffing = false;
 
-    Object.assign(this.testOptions, {
-      imageDiffOptions: {}
-    });
+    Object.assign(this.testOptions, DEFAULT_TEST_OPTIONS);
+  }
+
+  get defaultTestCase() {
+    return DEFAULT_TEST_CASE;
   }
 
   initTestCase(testCase) {
@@ -38,6 +58,28 @@ export default class SnapshotTestRunner extends TestRunner {
     if (!testCase.goldenImage) {
       throw new Error(`Test case ${testCase.name} does not have golden image`);
     }
+  }
+
+  runTestCase(testCase, onDone) {
+    const {deck} = this;
+
+    deck.setProps({
+      ...this.props,
+      ...testCase,
+      onBeforeRender: () => {
+        testCase.onBeforeRender({
+          deck,
+          layers: deck.props.layers
+        });
+      },
+      onAfterRender: () => {
+        testCase.onAfterRender({
+          deck,
+          layers: deck.props.layers,
+          done: onDone
+        });
+      }
+    });
   }
 
   shouldRender() {
@@ -52,15 +94,12 @@ export default class SnapshotTestRunner extends TestRunner {
     }
     this.isDiffing = true;
 
-    const diffOptions = Object.assign(
-      {},
-      this.testOptions.imageDiffOptions,
-      testCase.imageDiffOptions,
-      {
-        goldenImage: testCase.goldenImage,
-        region: getBoundingBoxInPage(this.deck.canvas)
-      }
-    );
+    const diffOptions = {
+      ...this.testOptions.imageDiffOptions,
+      ...testCase.imageDiffOptions,
+      goldenImage: testCase.goldenImage,
+      region: getBoundingBoxInPage(this.deck.canvas)
+    };
     // Take screenshot and compare
     window.browserTestDriver_captureAndDiffScreen(diffOptions).then(result => {
       // invoke user callback

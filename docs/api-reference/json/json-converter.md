@@ -1,6 +1,6 @@
-# JSONConverter (Experimental)
+# JSONConverter
 
-> NOTE: This component is only intended to support **official deck.gl API props** via JSON. In particular, it is not intended to evolve an implementation of alternate JSON schemas. Support for such schemas should be developed indenpendently, perhaps using the source code of this component as a base. See the [JSON Layers RFC](https://github.com/uber/deck.gl/blob/master/dev-docs/RFCs/v6.1/json-layers-rfc.md) for more on this.
+> NOTE: This component is only intended to support **official deck.gl API props** via JSON. In particular, it is not intended to evolve an implementation of alternate JSON schemas. Support for such schemas should be developed independently, perhaps using the source code of this component as a base. See the [JSON Layers RFC](https://github.com/visgl/deck.gl/blob/master/dev-docs/RFCs/v6.1/json-layers-rfc.md) for more on this.
 
 Converts a JSON description of a deck.gl visualization into properties that can be passed to the `Deck` component.
 
@@ -13,7 +13,7 @@ Requirements on the JSON description:
 ## Usage
 
 ```js
-import {_JSONConverter as JSONConverter} from '@deck.gl/json';
+import {JSONConverter} from '@deck.gl/json';
 
 import json from './us-map.json';
 
@@ -28,7 +28,7 @@ const deck = new Deck({
   json
 });
 
-deck.setProps(jsonConverter.convertJSONToDeckProps(json));
+deck.setProps(jsonConverter.convert(json));
 ```
 
 
@@ -37,23 +37,8 @@ deck.setProps(jsonConverter.convertJSONToDeckProps(json));
 
 ##### `json` (Object|String)
 
-A JSON string or a parsed JSON structure. 
-All properties in this object are passed to `Deck`, after processing, which includes the following fields:
-
-- `views` (Array) - If supplied, used to create `View` instances from JSON descriptors. `{type: MapView, ...props}` will be instantiated to `MapView(...props)`
-- `layers` (Array) - Passes to an instance of [JSONLayer](/docs/api-reference/json/json-layer.md) as the top level layer.
-- `map` (Boolean) - If set to `true` display a base map. See remarks below.
-- `mapStyle` (String) - An optional mapbox-gl compatible style URL.
-
-##### `configuration` (Object)
-
-Object with the following fields. See more details in the `Configuration` section below.
-
-* `layers` - Allows the application to specify which layer types the JSONConverter can use. Expects a map from layer names to layer classes. No layers are supported by default.
-* `views` - Allows the application to specify which view types the JSONConverter can use. Expects a map from view names to view classes. Can be ommitted as the standard views in `@deck.gl/core` module are supported by default.
-* `enumerations` - a map of enumerations that should be made available to the JSON string resolver.
-* `classes` - a map of general classes that should be made available to the JSON class resolver.
-
+A JSON string or a parsed JSON structure.
+All properties in this object, after processing, are passed to a [Deck](/docs/api-reference/core/deck.md) instance as props.
 
 ## Configuration
 
@@ -63,7 +48,7 @@ The JSON framework inspects the "raw" parsed JSON data structure before supplyin
 
 ```js
 const configuration = {
-  layers: Object.assign({}, require('@deck.gl/layers'), require('@deck.gl/aggregation-layers'))
+  classes: Object.assign({}, require('@deck.gl/layers'), require('@deck.gl/aggregation-layers'))
 };
 ```
 
@@ -82,7 +67,7 @@ and used to resolve this JSON object:
 }
 ```
 
-will replace the layers discriptor with
+will replace the layers descriptor with
 
 ```js
 {
@@ -98,6 +83,55 @@ will replace the layers discriptor with
 
 Whenever the `JSONConverter` component finds a "type" field, it looks into a "class catalog". This can be a layer, a view, or other objects.
 
+### Functions Catalogs
+
+A map of functions that should be made available to the JSON function resolver. For example, when this configuration is passed to `JSONConverter`:
+
+```js
+function calculateRadius({base, exponent}) {
+  return Math.pow(base, exponent);
+}
+
+const configuration = {
+  ...,
+  functions: {calculateRadius}
+};
+```
+
+and used to resolve this JSON object:
+
+```json
+{
+  "layers": [
+    {
+      "@@type": "ScatterplotLayer",
+      "data": ...,
+      "getColor": [0, 128, 255],
+      "getRadius": {
+        "@@function": "calculateRadius",
+        "base": 2,
+        "exponent": 3
+      }
+    }
+  ]
+}
+```
+
+it will replace the layers descriptor with
+
+```js
+{
+  layers: [
+    new ScatterplotLayer({
+      data: ...,
+      getColor: [0, 128, 255],
+      getRadius: 8
+    })
+  ]
+}
+```
+
+Whenever the `JSONConverter` component finds a "function" field, it looks into a "function catalog".
 
 ### Enumeration Catalogs
 
@@ -151,6 +185,46 @@ and used to resolve this JSON object:
 }
 ```
 
-## Remarks
+### Constants Catalogs
 
-* Displaying a base map requires `mapboxgl` top level prop to be provided, a valid `mapboxApiAccessToken` in top level props or `props.json`, and the view state to have longitude, latitude, zoom fields.
+A map of constants that should be made available to the JSON string resolver. This is also helpful to evaluate a prop that does not need to be instantiated. For example, when this configuration is passed to `JSONConverter`:
+
+```js
+import {MapController} from '@deck.gl/core';
+
+const configuration = {
+  ...
+  constants: {
+    MapController
+  }
+};
+```
+
+and used to resolve in this JSON object:
+
+```json
+{
+  "controller": "MapController",
+  "layers": [
+    {
+      "type": "ScatterplotLayer",
+      "data": ...,
+      ...
+    }
+  ]
+}
+```
+
+will replace the constants' value with the value provided in configuration declaration:
+
+```js
+{
+  controller: MapController, // MapController class from '@deck.gl/core' 
+  layers: [
+    new ScatterplotLayer({
+      data: ...,
+      ...
+    })
+  ]
+}
+``

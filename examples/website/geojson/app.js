@@ -1,15 +1,14 @@
-import React, {Component} from 'react';
+import React, {useState} from 'react';
 import {render} from 'react-dom';
 import {StaticMap} from 'react-map-gl';
-import DeckGL, {GeoJsonLayer} from 'deck.gl';
+import DeckGL from '@deck.gl/react';
+import {GeoJsonLayer, PolygonLayer} from '@deck.gl/layers';
+import {LightingEffect, AmbientLight, _SunLight as SunLight} from '@deck.gl/core';
 import {scaleThreshold} from 'd3-scale';
-
-// Set your mapbox token here
-const MAPBOX_TOKEN = process.env.MapboxAccessToken; // eslint-disable-line
 
 // Source data GeoJSON
 const DATA_URL =
-  'https://raw.githubusercontent.com/uber-common/deck.gl-data/master/examples/geojson/vancouver-blocks.json'; // eslint-disable-line
+  'https://raw.githubusercontent.com/visgl/deck.gl-data/master/examples/geojson/vancouver-blocks.json'; // eslint-disable-line
 
 export const COLOR_SCALE = scaleThreshold()
   .domain([-0.6, -0.45, -0.3, -0.15, 0, 0.15, 0.3, 0.45, 0.6, 0.75, 0.9, 1.05, 1.2])
@@ -39,81 +38,78 @@ const INITIAL_VIEW_STATE = {
   bearing: 0
 };
 
-export class App extends Component {
-  constructor(props) {
-    super(props);
+const MAP_STYLE = 'https://basemaps.cartocdn.com/gl/positron-nolabels-gl-style/style.json';
 
-    this.state = {
-      hoveredObject: null
-    };
-    this._onHover = this._onHover.bind(this);
-    this._renderTooltip = this._renderTooltip.bind(this);
-  }
+const ambientLight = new AmbientLight({
+  color: [255, 255, 255],
+  intensity: 1.0
+});
 
-  _onHover({x, y, object}) {
-    this.setState({x, y, hoveredObject: object});
-  }
+const dirLight = new SunLight({
+  timestamp: Date.UTC(2019, 7, 1, 22),
+  color: [255, 255, 255],
+  intensity: 1.0,
+  _shadow: true
+});
 
-  _renderLayers() {
-    const {data = DATA_URL} = this.props;
+const landCover = [[[-123.0, 49.196], [-123.0, 49.324], [-123.306, 49.324], [-123.306, 49.196]]];
 
-    return [
-      new GeoJsonLayer({
-        id: 'geojson',
-        data,
-        opacity: 0.8,
-        stroked: false,
-        filled: true,
-        extruded: true,
-        wireframe: true,
-        getElevation: f => Math.sqrt(f.properties.valuePerSqm) * 10,
-        getFillColor: f => COLOR_SCALE(f.properties.growth),
-        getLineColor: [255, 255, 255],
-        pickable: true,
-        onHover: this._onHover
-      })
-    ];
-  }
+function getTooltip({object}) {
+  return (
+    object && {
+      html: `\
+  <div><b>Average Property Value</b></div>
+  <div>${object.properties.valuePerParcel} / parcel</div>
+  <div>${object.properties.valuePerSqm} / m<sup>2</sup></div>
+  <div><b>Growth</b></div>
+  <div>${Math.round(object.properties.growth * 100)}%</div>
+  `
+    }
+  );
+}
 
-  _renderTooltip() {
-    const {x, y, hoveredObject} = this.state;
-    return (
-      hoveredObject && (
-        <div className="tooltip" style={{top: y, left: x}}>
-          <div>
-            <b>Average Property Value</b>
-          </div>
-          <div>
-            <div>${hoveredObject.properties.valuePerParcel} / parcel</div>
-            <div>
-              ${hoveredObject.properties.valuePerSqm} / m<sup>2</sup>
-            </div>
-          </div>
-          <div>
-            <b>Growth</b>
-          </div>
-          <div>{Math.round(hoveredObject.properties.growth * 100)}%</div>
-        </div>
-      )
-    );
-  }
+export default function App({data = DATA_URL, mapStyle = MAP_STYLE}) {
+  const [effects] = useState(() => {
+    const lightingEffect = new LightingEffect({ambientLight, dirLight});
+    lightingEffect.shadowColor = [0, 0, 0, 0.5];
+    return [lightingEffect];
+  });
 
-  render() {
-    const {mapStyle = 'mapbox://styles/mapbox/light-v9'} = this.props;
+  const layers = [
+    // only needed when using shadows - a plane for shadows to drop on
+    new PolygonLayer({
+      id: 'ground',
+      data: landCover,
+      stroked: false,
+      getPolygon: f => f,
+      getFillColor: [0, 0, 0, 0]
+    }),
+    new GeoJsonLayer({
+      id: 'geojson',
+      data,
+      opacity: 0.8,
+      stroked: false,
+      filled: true,
+      extruded: true,
+      wireframe: true,
+      getElevation: f => Math.sqrt(f.properties.valuePerSqm) * 10,
+      getFillColor: f => COLOR_SCALE(f.properties.growth),
+      getLineColor: [255, 255, 255],
+      pickable: true
+    })
+  ];
 
-    return (
-      <DeckGL layers={this._renderLayers()} initialViewState={INITIAL_VIEW_STATE} controller={true}>
-        <StaticMap
-          reuseMaps
-          mapStyle={mapStyle}
-          preventStyleDiffing={true}
-          mapboxApiAccessToken={MAPBOX_TOKEN}
-        />
-
-        {this._renderTooltip}
-      </DeckGL>
-    );
-  }
+  return (
+    <DeckGL
+      layers={layers}
+      effects={effects}
+      initialViewState={INITIAL_VIEW_STATE}
+      controller={true}
+      getTooltip={getTooltip}
+    >
+      <StaticMap reuseMaps mapStyle={mapStyle} preventStyleDiffing={true} />
+    </DeckGL>
+  );
 }
 
 export function renderToDOM(container) {

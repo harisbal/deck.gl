@@ -24,13 +24,17 @@ export default `\
 attribute vec3 positions;
 attribute vec4 instanceSourceColors;
 attribute vec4 instanceTargetColors;
-attribute vec4 instancePositions;
-attribute vec4 instancePositions64Low;
+attribute vec3 instanceSourcePositions;
+attribute vec3 instanceSourcePositions64Low;
+attribute vec3 instanceTargetPositions;
+attribute vec3 instanceTargetPositions64Low;
 attribute vec3 instancePickingColors;
 attribute float instanceWidths;
 attribute float instanceHeights;
 attribute float instanceTilts;
 
+uniform bool greatCircle;
+uniform bool useShortestPath;
 uniform float numSegments;
 uniform float opacity;
 uniform float widthScale;
@@ -39,15 +43,30 @@ uniform float widthMaxPixels;
 
 varying vec4 vColor;
 varying vec2 uv;
+varying float isValid;
 
-float paraboloid(vec2 source, vec2 target, float ratio) {
+float paraboloid(float distance, float sourceZ, float targetZ, float ratio) {
+  // d: distance on the xy plane
+  // r: ratio of the current point
+  // p: ratio of the peak of the arc
+  // h: height multiplier
+  // z = f(r) = sqrt(r * (p * 2 - r)) * d * h
+  // f(0) = 0
+  // f(1) = dz
 
-  vec2 x = mix(source, target, ratio);
-  vec2 center = mix(source, target, 0.5);
+  float deltaZ = targetZ - sourceZ;
+  float dh = distance * instanceHeights;
+  if (dh == 0.0) {
+    return sourceZ + deltaZ * ratio;
+  }
+  float unitZ = deltaZ / dh;
+  float p2 = unitZ * unitZ + 1.0;
 
-  float dSourceCenter = distance(source, center);
-  float dXCenter = distance(x, center);
-  return (dSourceCenter + dXCenter) * (dSourceCenter - dXCenter);
+  // sqrt does not deal with negative values, manually flip source and target if delta.z < 0
+  float dir = step(deltaZ, 0.0);
+  float z0 = mix(sourceZ, targetZ, dir);
+  float r = mix(ratio, 1.0 - ratio, dir);
+  return sqrt(r * (p2 - r)) * dh + z0;
 }
 
 // offset vector by strokeWidth pixels
@@ -65,40 +84,154 @@ float getSegmentRatio(float index) {
   return smoothstep(0.0, 1.0, index / (numSegments - 1.0));
 }
 
-vec3 getPos(vec2 source, vec2 target, float segmentRatio) {
-  float vertexHeight = sqrt(max(0.0, paraboloid(source, target, segmentRatio))) * instanceHeights;
+vec3 interpolateFlat(vec3 source, vec3 target, float segmentRatio) {
+  float distance = length(source.xy - target.xy);
+  float z = paraboloid(distance, source.z, target.z, segmentRatio);
 
   float tiltAngle = radians(instanceTilts);
-  vec2 tiltDirection = normalize(target - source);
-  vec2 tilt = vec2(-tiltDirection.y, tiltDirection.x) * vertexHeight * sin(tiltAngle);
+  vec2 tiltDirection = normalize(target.xy - source.xy);
+  vec2 tilt = vec2(-tiltDirection.y, tiltDirection.x) * z * sin(tiltAngle);
 
   return vec3(
-    mix(source, target, segmentRatio) + tilt,
-    vertexHeight * cos(tiltAngle)
+    mix(source.xy, target.xy, segmentRatio) + tilt,
+    z * cos(tiltAngle)
   );
 }
 
-void main(void) {
-  geometry.worldPosition = vec3(instancePositions.xy, 0.0);
-  geometry.worldPositionAlt = vec3(instancePositions.zw, 0.0);
+/* Great circle interpolation
+ * http://www.movable-type.co.uk/scripts/latlong.html
+ */
+float getAngularDist (vec2 source, vec2 target) {
+  vec2 sourceRadians = radians(source);
+  vec2 targetRadians = radians(target);
+  vec2 sin_half_delta = sin((sourceRadians - targetRadians) / 2.0);
+  vec2 shd_sq = sin_half_delta * sin_half_delta;
 
-  vec2 source = project_position(geometry.worldPosition, instancePositions64Low.xy).xy;
-  vec2 target = project_position(geometry.worldPositionAlt, instancePositions64Low.zw).xy;
+  float a = shd_sq.y + cos(sourceRadians.y) * cos(targetRadians.y) * shd_sq.x;
+  return 2.0 * asin(sqrt(a));
+}
+
+vec3 interpolateGreatCircle(vec3 source, vec3 target, vec3 source3D, vec3 target3D, float angularDist, float t) {
+  vec2 lngLat;
+
+  // if the angularDist is PI, linear interpolation is applied. otherwise, use spherical interpolation
+  if(abs(angularDist - PI) < 0.001) {
+    lngLat = (1.0 - t) * source.xy + t * target.xy;
+  } else {
+    float a = sin((1.0 - t) * angularDist);
+    float b = sin(t * angularDist);
+    vec3 p = source3D.yxz * a + target3D.yxz * b;
+    lngLat = degrees(vec2(atan(p.y, -p.x), atan(p.z, length(p.xy))));
+  }
+
+  float z = paraboloid(angularDist * EARTH_RADIUS, source.z, target.z, t);
+
+  return vec3(lngLat, z);
+}
+
+/* END GREAT CIRCLE */
+
+void main(void) {
+  geometry.worldPosition = instanceSourcePositions;
+  geometry.worldPositionAlt = instanceTargetPositions;
 
   float segmentIndex = positions.x;
   float segmentRatio = getSegmentRatio(segmentIndex);
+  float prevSegmentRatio = getSegmentRatio(max(0.0, segmentIndex - 1.0));
+  float nextSegmentRatio = getSegmentRatio(min(numSegments - 1.0, segmentIndex + 1.0));
+
   // if it's the first point, use next - current as direction
   // otherwise use current - prev
   float indexDir = mix(-1.0, 1.0, step(segmentIndex, 0.0));
-  float nextSegmentRatio = getSegmentRatio(segmentIndex + indexDir);
+  isValid = 1.0;
 
-  vec3 currPos = getPos(source, target, segmentRatio);
-  vec3 nextPos = getPos(source, target, nextSegmentRatio);
-  vec4 curr = project_common_position_to_clipspace(vec4(currPos, 1.0));
-  vec4 next = project_common_position_to_clipspace(vec4(nextPos, 1.0));
-  geometry.position = vec4(currPos, 1.0);
   uv = vec2(segmentRatio, positions.y);
   geometry.uv = uv;
+  geometry.pickingColor = instancePickingColors;
+
+  vec4 curr;
+  vec4 next;
+  vec3 source;
+  vec3 target;
+
+  if ((greatCircle || project_uProjectionMode == PROJECTION_MODE_GLOBE) && project_uCoordinateSystem == COORDINATE_SYSTEM_LNGLAT) {
+    source = project_globe_(vec3(instanceSourcePositions.xy, 0.0));
+    target = project_globe_(vec3(instanceTargetPositions.xy, 0.0));
+    float angularDist = getAngularDist(instanceSourcePositions.xy, instanceTargetPositions.xy);
+
+    vec3 prevPos = interpolateGreatCircle(instanceSourcePositions, instanceTargetPositions, source, target, angularDist, prevSegmentRatio);
+    vec3 currPos = interpolateGreatCircle(instanceSourcePositions, instanceTargetPositions, source, target, angularDist, segmentRatio);
+    vec3 nextPos = interpolateGreatCircle(instanceSourcePositions, instanceTargetPositions, source, target, angularDist, nextSegmentRatio);
+
+    if (abs(currPos.x - prevPos.x) > 180.0) {
+      indexDir = -1.0;
+      isValid = 0.0;
+    } else if (abs(currPos.x - nextPos.x) > 180.0) {
+      indexDir = 1.0;
+      isValid = 0.0;
+    }
+    nextPos = indexDir < 0.0 ? prevPos : nextPos;
+    nextSegmentRatio = indexDir < 0.0 ? prevSegmentRatio : nextSegmentRatio;
+
+    if (isValid == 0.0) {
+      // split at the 180th meridian
+      nextPos.x += nextPos.x > 0.0 ? -360.0 : 360.0;
+      float t = ((currPos.x > 0.0 ? 180.0 : -180.0) - currPos.x) / (nextPos.x - currPos.x);
+      currPos = mix(currPos, nextPos, t);
+      segmentRatio = mix(segmentRatio, nextSegmentRatio, t);
+    }
+
+    vec3 currPos64Low = mix(instanceSourcePositions64Low, instanceTargetPositions64Low, segmentRatio);
+    vec3 nextPos64Low = mix(instanceSourcePositions64Low, instanceTargetPositions64Low, nextSegmentRatio);
+  
+    curr = project_position_to_clipspace(currPos, currPos64Low, vec3(0.0), geometry.position);
+    next = project_position_to_clipspace(nextPos, nextPos64Low, vec3(0.0));
+  
+  } else {
+    vec3 source_world = instanceSourcePositions;
+    vec3 target_world = instanceTargetPositions;
+    if (useShortestPath) {
+      source_world.x = mod(source_world.x + 180., 360.0) - 180.;
+      target_world.x = mod(target_world.x + 180., 360.0) - 180.;
+
+      float deltaLng = target_world.x - source_world.x;
+      if (deltaLng > 180.) target_world.x -= 360.;
+      if (deltaLng < -180.) source_world.x -= 360.;
+    }
+    source = project_position(source_world, instanceSourcePositions64Low);
+    target = project_position(target_world, instanceTargetPositions64Low);
+
+    // common x at longitude=-180
+    float antiMeridianX = 0.0;
+
+    if (useShortestPath) {
+      if (project_uProjectionMode == PROJECTION_MODE_WEB_MERCATOR_AUTO_OFFSET) {
+        antiMeridianX = -(project_uCoordinateOrigin.x + 180.) / 360. * TILE_SIZE;
+      }
+      float thresholdRatio = (antiMeridianX - source.x) / (target.x - source.x);
+
+      if (prevSegmentRatio <= thresholdRatio && nextSegmentRatio > thresholdRatio) {
+        isValid = 0.0;
+        indexDir = sign(segmentRatio - thresholdRatio);
+        segmentRatio = thresholdRatio;
+      }
+    }
+
+    nextSegmentRatio = indexDir < 0.0 ? prevSegmentRatio : nextSegmentRatio;
+    vec3 currPos = interpolateFlat(source, target, segmentRatio);
+    vec3 nextPos = interpolateFlat(source, target, nextSegmentRatio);
+
+    if (useShortestPath) {
+      if (nextPos.x < antiMeridianX) {
+        currPos.x += TILE_SIZE;
+        nextPos.x += TILE_SIZE;
+      }
+    }
+
+    curr = project_common_position_to_clipspace(vec4(currPos, 1.0));
+    next = project_common_position_to_clipspace(vec4(nextPos, 1.0));
+    geometry.position = vec4(currPos, 1.0);
+  }
 
   // Multiply out width and clamp to limits
   // mercator pixels are interpreted as screen pixels
@@ -115,11 +248,8 @@ void main(void) {
   gl_Position = curr + vec4(project_pixel_size_to_clipspace(offset.xy), 0.0, 0.0);
   DECKGL_FILTER_GL_POSITION(gl_Position, geometry);
 
-  vec4 color = mix(instanceSourceColors, instanceTargetColors, segmentRatio) / 255.;
+  vec4 color = mix(instanceSourceColors, instanceTargetColors, segmentRatio);
   vColor = vec4(color.rgb, color.a * opacity);
   DECKGL_FILTER_COLOR(vColor, geometry);
-
-  // Set color to be rendered to picking fbo (also used to check for selection highlight).
-  picking_setPickingColor(instancePickingColors);
 }
 `;

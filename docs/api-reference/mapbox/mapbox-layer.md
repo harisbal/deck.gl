@@ -29,13 +29,16 @@ const myScatterplotLayer = new MapboxLayer({
     getColor: [255, 0, 0]
 });
 
-// add to mapbox
-map.addLayer(myScatterplotLayer);
+// wait for map to be ready
+map.on('load', () => {
+    // add to mapbox
+    map.addLayer(myScatterplotLayer);
 
-// update the layer
-myScatterplotLayer.setProps({
-    getColor: [0, 0, 255]
-});
+    // update the layer
+    myScatterplotLayer.setProps({
+      getColor: [0, 0, 255]
+    });
+}
 ```
 
 ### Use a Layer from an Existing Deck's Layer Stack
@@ -64,25 +67,27 @@ const deck = new Deck({
     ]
 });
 
-// add to mapbox
-map.addLayer(new MapboxLayer({id: 'my-scatterplot', deck}));
+// wait for map to be ready
+map.on('load', () => {
+    // add to mapbox
+    map.addLayer(new MapboxLayer({id: 'my-scatterplot', deck}));
 
-// update the layer
-deck.setProps({
-    layers: [
-        new ScatterplotLayer({
-            id: 'my-scatterplot',
-            data: [
-                {position: [-74.5, 40], size: 100}
-            ],
-            getPosition: d => d.position,
-            getRadius: d => d.size,
-            getFillColor: [0, 0, 255]
-        })
-    ]
-});
+    // update the layer
+    deck.setProps({
+        layers: [
+            new ScatterplotLayer({
+                id: 'my-scatterplot',
+                data: [
+                    {position: [-74.5, 40], size: 100}
+                ],
+                getPosition: d => d.position,
+                getRadius: d => d.size,
+                getFillColor: [0, 0, 255]
+            })
+        ]
+    });
+}
 ```
-
 
 ## Constructor
 
@@ -97,7 +102,7 @@ Parameters:
   + `props.id` (String) - an unique id is required for each layer.
   + `props.deck` (`Deck`, optional) - a `Deck` instance that controls the rendering of this layer. If provided, the layer will be looked up from its layer stack by `id` at render time, and all other props are ignored.
   + `props.type` (`Layer`, optional) - a class that extends deck.gl's base `Layer` class. Required if `deck` is not provided.
-  + Optional: any other prop needed by this type of layer. See deck.gl's [layer catalog](http://deck.gl/#/documentation/deckgl-api-reference/layers/layer) for documentations and examples on how to create layers.
+  + Optional: any other prop needed by this type of layer. See deck.gl's [layer catalog](/docs/api-reference/layers/README.md) for documentation and examples on how to create layers.
 
 
 ## Methods

@@ -3,9 +3,11 @@ import GPUGridAggregator from '../utils/gpu-grid-aggregation/gpu-grid-aggregator
 import GPUGridLayer from '../gpu-grid-layer/gpu-grid-layer';
 import CPUGridLayer from '../cpu-grid-layer/cpu-grid-layer';
 
-const defaultProps = Object.assign({}, GPUGridLayer.defaultProps, CPUGridLayer.defaultProps, {
+const defaultProps = {
+  ...GPUGridLayer.defaultProps,
+  ...CPUGridLayer.defaultProps,
   gpuAggregation: false
-});
+};
 
 export default class GridLayer extends CompositeLayer {
   initializeState() {
@@ -46,7 +48,8 @@ export default class GridLayer extends CompositeLayer {
       lowerPercentile,
       upperPercentile,
       getColorValue,
-      getElevationValue
+      getElevationValue,
+      colorScaleType
     } = props;
     if (!gpuAggregation) {
       // cpu aggregation is requested
@@ -61,6 +64,10 @@ export default class GridLayer extends CompositeLayer {
     }
     if (getColorValue !== null || getElevationValue !== null) {
       // accessor for custom color or elevation calculation is specified
+      return false;
+    }
+    if (colorScaleType === 'quantile' || colorScaleType === 'ordinal') {
+      // quantile and ordinal scales are not supported on GPU
       return false;
     }
     return true;

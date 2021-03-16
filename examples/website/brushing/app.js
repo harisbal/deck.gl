@@ -1,5 +1,5 @@
 /* global fetch */
-import React, {Component} from 'react';
+import React, {useMemo} from 'react';
 import {render} from 'react-dom';
 import {StaticMap} from 'react-map-gl';
 import DeckGL from '@deck.gl/react';
@@ -7,23 +7,9 @@ import {ScatterplotLayer, ArcLayer} from '@deck.gl/layers';
 import {BrushingExtension} from '@deck.gl/extensions';
 import {scaleLinear} from 'd3-scale';
 
-// Set your mapbox token here
-const MAPBOX_TOKEN = process.env.MapboxAccessToken; // eslint-disable-line
-
-const TOOLTIP_STYLE = {
-  position: 'absolute',
-  padding: '4px',
-  background: 'rgba(0, 0, 0, 0.8)',
-  color: '#fff',
-  maxWidth: '300px',
-  fontSize: '10px',
-  zIndex: 9,
-  pointerEvents: 'none'
-};
-
 // Source data GeoJSON
 const DATA_URL =
-  'https://raw.githubusercontent.com/uber-common/deck.gl-data/master/examples/arc/counties.json'; // eslint-disable-line
+  'https://raw.githubusercontent.com/visgl/deck.gl-data/master/examples/arc/counties.json'; // eslint-disable-line
 
 export const inFlowColors = [[35, 181, 184]];
 export const outFlowColors = [[166, 3, 3]];
@@ -42,139 +28,107 @@ const INITIAL_VIEW_STATE = {
   bearing: 0
 };
 
+const MAP_STYLE = 'https://basemaps.cartocdn.com/gl/positron-nolabels-gl-style/style.json';
+
 const brushingExtension = new BrushingExtension();
 
+/* eslint-disable  max-nested-callbacks */
+function getLayerData(data) {
+  if (!data || !data.length) {
+    return {};
+  }
+  const arcs = [];
+  const targets = [];
+  const sources = [];
+  const pairs = {};
+
+  data.forEach((county, i) => {
+    const {flows, centroid: targetCentroid} = county.properties;
+    const value = {gain: 0, loss: 0};
+
+    Object.keys(flows).forEach(toId => {
+      value[flows[toId] > 0 ? 'gain' : 'loss'] += flows[toId];
+
+      // if number too small, ignore it
+      if (Math.abs(flows[toId]) < 50) {
+        return;
+      }
+      const pairKey = [i, Number(toId)].sort((a, b) => a - b).join('-');
+      const sourceCentroid = data[toId].properties.centroid;
+      const gain = Math.sign(flows[toId]);
+
+      // add point at arc source
+      sources.push({
+        position: sourceCentroid,
+        target: targetCentroid,
+        name: data[toId].properties.name,
+        radius: 3,
+        gain: -gain
+      });
+
+      // eliminate duplicates arcs
+      if (pairs[pairKey]) {
+        return;
+      }
+
+      pairs[pairKey] = true;
+
+      arcs.push({
+        target: gain > 0 ? targetCentroid : sourceCentroid,
+        source: gain > 0 ? sourceCentroid : targetCentroid,
+        value: flows[toId]
+      });
+    });
+
+    // add point at arc target
+    targets.push({
+      ...value,
+      position: [targetCentroid[0], targetCentroid[1], 10],
+      net: value.gain + value.loss,
+      name: county.properties.name
+    });
+  });
+
+  // sort targets by radius large -> small
+  targets.sort((a, b) => Math.abs(b.net) - Math.abs(a.net));
+  const sizeScale = scaleLinear()
+    .domain([0, Math.abs(targets[0].net)])
+    .range([36, 400]);
+
+  targets.forEach(pt => {
+    pt.radius = Math.sqrt(sizeScale(Math.abs(pt.net)));
+  });
+
+  return {arcs, targets, sources};
+}
+
+function getTooltip({object}) {
+  return (
+    object &&
+    `\
+    ${object.name}
+    Net gain: ${object.net}`
+  );
+}
+
 /* eslint-disable react/no-deprecated */
-export class App extends Component {
-  constructor(props) {
-    super(props);
-    this.state = {
-      arcs: [],
-      targets: [],
-      sources: [],
-      ...this._getLayerData(props)
-    };
-    this._onHover = this._onHover.bind(this);
-  }
+export default function App({
+  data,
+  enableBrushing = true,
+  brushRadius = 100000,
+  strokeWidth = 2,
+  opacity = 0.7,
+  mapStyle = MAP_STYLE
+}) {
+  const {arcs, targets, sources} = useMemo(() => getLayerData(data), [data]);
 
-  componentWillReceiveProps(nextProps) {
-    if (nextProps.data !== this.props.data) {
-      this.setState({
-        ...this._getLayerData(nextProps)
-      });
-    }
-  }
-
-  _onHover({x, y, object}) {
-    this.setState({x, y, hoveredObject: object});
-  }
-
-  _getLayerData({data}) {
-    if (!data) {
-      return null;
-    }
-    const arcs = [];
-    const targets = [];
-    const sources = [];
-    const pairs = {};
-
-    data.forEach((county, i) => {
-      const {flows, centroid: targetCentroid} = county.properties;
-      const value = {gain: 0, loss: 0};
-
-      Object.keys(flows).forEach(toId => {
-        value[flows[toId] > 0 ? 'gain' : 'loss'] += flows[toId];
-
-        // if number too small, ignore it
-        if (Math.abs(flows[toId]) < 50) {
-          return;
-        }
-        const pairKey = [i, Number(toId)].sort((a, b) => a - b).join('-');
-        const sourceCentroid = data[toId].properties.centroid;
-        const gain = Math.sign(flows[toId]);
-
-        // add point at arc source
-        sources.push({
-          position: sourceCentroid,
-          target: targetCentroid,
-          name: data[toId].properties.name,
-          radius: 3,
-          gain: -gain
-        });
-
-        // eliminate duplicates arcs
-        if (pairs[pairKey]) {
-          return;
-        }
-
-        pairs[pairKey] = true;
-
-        arcs.push({
-          target: gain > 0 ? targetCentroid : sourceCentroid,
-          source: gain > 0 ? sourceCentroid : targetCentroid,
-          value: flows[toId]
-        });
-      });
-
-      // add point at arc target
-      targets.push({
-        ...value,
-        position: [targetCentroid[0], targetCentroid[1], 10],
-        net: value.gain + value.loss,
-        name: county.properties.name
-      });
-    });
-
-    // sort targets by radius large -> small
-    targets.sort((a, b) => Math.abs(b.net) - Math.abs(a.net));
-    const sizeScale = scaleLinear()
-      .domain([0, Math.abs(targets[0].net)])
-      .range([36, 400]);
-
-    targets.forEach(pt => {
-      pt.radius = Math.sqrt(sizeScale(Math.abs(pt.net)));
-    });
-
-    return {arcs, targets, sources};
-  }
-
-  _renderTooltip() {
-    const {x, y, hoveredObject} = this.state;
-
-    if (!hoveredObject) {
-      return null;
-    }
-
-    return (
-      <div style={{...TOOLTIP_STYLE, left: x, top: y}}>
-        <div>{hoveredObject.name}</div>
-        <div>{`Net gain: ${hoveredObject.net}`}</div>
-      </div>
-    );
-  }
-
-  _renderLayers() {
-    const {
-      enableBrushing = true,
-      brushRadius = 100000,
-      strokeWidth = 2,
-      opacity = 0.7
-    } = this.props;
-
-    const {arcs, targets, sources} = this.state;
-
-    if (!arcs || !targets) {
-      return null;
-    }
-
-    return [
+  const layers = arcs &&
+    targets && [
       new ScatterplotLayer({
         id: 'sources',
         data: sources,
         brushingRadius: brushRadius,
-        opacity: 1,
         brushingEnabled: enableBrushing,
-        pickable: false,
         // only show source points when brushing
         radiusScale: enableBrushing ? 3000 : 0,
         getFillColor: d => (d.gain > 0 ? TARGET_COLOR : SOURCE_COLOR),
@@ -187,7 +141,6 @@ export class App extends Component {
         lineWidthMinPixels: 2,
         stroked: true,
         filled: false,
-        opacity: 1,
         brushingEnabled: enableBrushing,
         // only show rings when brushing
         radiusScale: enableBrushing ? 4000 : 0,
@@ -198,11 +151,9 @@ export class App extends Component {
         id: 'targets',
         data: targets,
         brushingRadius: brushRadius,
-        opacity: 1,
         brushingEnabled: enableBrushing,
         pickable: true,
         radiusScale: 3000,
-        onHover: this._onHover,
         getFillColor: d => (d.net > 0 ? TARGET_COLOR : SOURCE_COLOR),
         extensions: [brushingExtension]
       }),
@@ -220,29 +171,17 @@ export class App extends Component {
         extensions: [brushingExtension]
       })
     ];
-  }
 
-  render() {
-    const {mapStyle = 'mapbox://styles/mapbox/light-v9'} = this.props;
-
-    return (
-      <DeckGL
-        ref={this._deckRef}
-        layers={this._renderLayers()}
-        initialViewState={INITIAL_VIEW_STATE}
-        controller={true}
-      >
-        <StaticMap
-          reuseMaps
-          mapStyle={mapStyle}
-          preventStyleDiffing={true}
-          mapboxApiAccessToken={MAPBOX_TOKEN}
-        />
-
-        {this._renderTooltip()}
-      </DeckGL>
-    );
-  }
+  return (
+    <DeckGL
+      layers={layers}
+      initialViewState={INITIAL_VIEW_STATE}
+      controller={true}
+      getTooltip={getTooltip}
+    >
+      <StaticMap reuseMaps mapStyle={mapStyle} preventStyleDiffing={true} />
+    </DeckGL>
+  );
 }
 
 export function renderToDOM(container) {

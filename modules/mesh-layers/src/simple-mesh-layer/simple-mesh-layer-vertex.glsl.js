@@ -3,15 +3,17 @@ export default `#version 300 es
 
 // Scale the model
 uniform float sizeScale;
+uniform bool composeModelMatrix;
 
 // Primitive attributes
 in vec3 positions;
 in vec3 normals;
+in vec3 colors;
 in vec2 texCoords;
 
 // Instance attributes
 in vec3 instancePositions;
-in vec2 instancePositions64xy;
+in vec3 instancePositions64Low;
 in vec4 instanceColors;
 in vec3 instancePickingColors;
 in mat3 instanceModelMatrix;
@@ -27,23 +29,29 @@ out vec4 vColor;
 void main(void) {
   geometry.worldPosition = instancePositions;
   geometry.uv = texCoords;
+  geometry.pickingColor = instancePickingColors;
 
   vTexCoord = texCoords;
   cameraPosition = project_uCameraPosition;
   normals_commonspace = project_normal(instanceModelMatrix * normals);
-  vColor = instanceColors;
+  vColor = vec4(colors * instanceColors.rgb, instanceColors.a);
   geometry.normal = normals_commonspace;
 
   vec3 pos = (instanceModelMatrix * positions) * sizeScale + instanceTranslation;
-  pos = project_size(pos);
-  DECKGL_FILTER_SIZE(pos, geometry);
 
-  gl_Position = project_position_to_clipspace(instancePositions, instancePositions64xy, pos, position_commonspace);
+  if (composeModelMatrix) {
+    DECKGL_FILTER_SIZE(pos, geometry);
+    gl_Position = project_position_to_clipspace(pos + instancePositions, instancePositions64Low, vec3(0.0), position_commonspace);
+  }
+  else {
+    pos = project_size(pos);
+    DECKGL_FILTER_SIZE(pos, geometry);
+    gl_Position = project_position_to_clipspace(instancePositions, instancePositions64Low, pos, position_commonspace);
+  }
+
   geometry.position = position_commonspace;
   DECKGL_FILTER_GL_POSITION(gl_Position, geometry);
 
   DECKGL_FILTER_COLOR(vColor, geometry);
-
-  picking_setPickingColor(instancePickingColors);
 }
 `;

@@ -1,18 +1,20 @@
 # Writing Shaders
 
-A shader library facilitates creating shaders that work seamlessly with deck.gl. The `modules` parameter passed to the [Model](https://github.com/uber/luma.gl/blob/master/docs/api-reference/core/model.md) class can dynamically include parts from this library into your own GLSL code:
+A shader library facilitates creating shaders that work seamlessly with deck.gl. The `modules` parameter passed to the [Model](https://github.com/visgl/luma.gl/blob/8.0-release/docs/api-reference/engine/model.md) class can dynamically include parts from this library into your own GLSL code:
 
 ```js
+import {picking, project32, gouraudLighting} from '@deck.gl/core';
+
 const model = new Model(gl, {
   vs: '// vertex shader GLSL source'
   fs: '// fragment shader GLSL source',
-  modules: ['picking', 'project', 'lighting'] // list of optional module names
+  modules: [picking, project32, gouraudLighting] // list of optional module names
 });
 ```
 
 ## Shader Assembly
 
-Your shaders will be run through the luma.gl [shader assembler](https://github.com/uber/luma.gl/blob/master/docs/api-reference/shadertools/assemble-shaders.md), which injects code from various module dependencies, The generated shader always contains a prologue of platform defines, and then the modules (see below), and finally your shader code is added.
+Your shaders will be run through the luma.gl [shader assembler](https://github.com/visgl/luma.gl/blob/8.0-release/docs/api-reference/shadertools/assemble-shaders.md), which injects code from various module dependencies, The generated shader always contains a prologue of platform defines, and then the modules (see below), and finally your shader code is added.
 
 ### Platform defines
 
@@ -23,17 +25,17 @@ This "virtual" module is a dynamically generated prologue containing #defines de
 
 #### projection
 
-The [project](/docs/shader-modules/project.md) shader module is part of the core of deck.gl. It makes it easy to write shaders that support all of deck.gl's projection modes and it supports some advanced rendering techniques such as pixel space rendering etc.
+The [project](/docs/api-reference/core/project.md) shader module is part of the core of deck.gl. It makes it easy to write shaders that support all of deck.gl's projection modes and it supports some advanced rendering techniques such as pixel space rendering etc.
 
-The `project` module also has two extensions, [project32](/docs/shader-modules/project32.md) and [project64](/docs/shader-modules/project64.md).
+The `project` module also has two extensions, [project32](/docs/api-reference/core/project32.md) and [project64](/docs/api-reference/core/project64.md).
 
 
 #### lighting
 
 A simple lighting package is provided in deck.gl, supporting a single directional light in addition to ambient light. Turning on lighting requires normals to be provided for each vertex. There are two flavors:
 
-- [gouraudlighting](https://github.com/uber/luma.gl/blob/master/modules/shadertools/src/modules/phong-lighting/phong-lighting.js) - for lighting calculated in the vertex shader
-- [phonglighting](https://github.com/uber/luma.gl/blob/master/modules/shadertools/src/modules/phong-lighting/phong-lighting.js) - for lighting calculated in the fragment shader
+- [gouraudLighting] - for lighting calculated in the vertex shader
+- [phongLighting] - for lighting calculated in the fragment shader
 
 
 #### fp64
@@ -44,7 +46,7 @@ Note that for geospatial projection, deck.gl v6.1 introduced a "hybrid" 32-bit p
 
 #### picking
 
-Picking is supported using luma.gl [picking shader module](https://github.com/uber/luma.gl/blob/master/docs/api-reference/shadertools/shader-module-picking.md).
+Picking is supported using luma.gl [picking shader module](https://github.com/visgl/luma.gl/blob/8.0-release/docs/api-reference/shadertools/core-shader-modules.md#picking).
 
 
 ### Standard Shader Hooks
@@ -138,6 +140,7 @@ Arguments:
 - `vec3 normal` - The normal at the current vertex in common space. Only populated for 3D layers.
 - `vec2 uv` - The uv position at the current vertex.
 - `vec4 position` - The position of the current vertex in common space. Populated during projection.
+- `vec3 pickingColor` - The picking color of the current vertex.
 
 ### FragmentGeometry struct
 
@@ -176,8 +179,8 @@ In the fragment shader, multiply the fragment color with the opacity uniform.
 
 ### Shader Module Uniforms
 
-The luma.gl/deck.gl shader modules provide javascript functions to set their uniforms but the actual GLSL uniforms are typically considered implementation dependent. The intention is that you should use the public functions exposed by each shader module. That said, some uniforms from the [`project`](/docs/shader-modules/project.md) module are considered special and are documented.
+The luma.gl/deck.gl shader modules provide javascript functions to set their uniforms but the actual GLSL uniforms are typically considered implementation dependent. The intention is that you should use the public functions exposed by each shader module. That said, some uniforms from the [`project`](/docs/api-reference/core/project.md) module are considered special and are documented.
 
 ## Remarks
 
-* **Use With Other GLSL Code Assemblers** - Your shader code can be run through another GLSL code assembler like [glslify](https://github.com/stackgl/glslify) before you pass it to `assembleShaders`. This means that you are not forced to work with onlyy luma.gl shader modules, you can use multiple techniques to organize your shader code to fit your project needs.
+* **Use With Other GLSL Code Assemblers** - Your shader code can be run through another GLSL code assembler like [glslify](https://github.com/stackgl/glslify) before you pass it to `assembleShaders`. This means that you are not forced to work with only luma.gl shader modules, you can use multiple techniques to organize your shader code to fit your project needs.

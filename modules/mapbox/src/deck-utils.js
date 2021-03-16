@@ -40,6 +40,7 @@ export function getDeckInstance({map, gl, deck}) {
       gl,
       width: false,
       height: false,
+      touchAction: 'unset',
       viewState: getViewState(map)
     });
     deck = new Deck(deckProps);
@@ -53,8 +54,11 @@ export function getDeckInstance({map, gl, deck}) {
       map.__deck = null;
     });
   }
+  deck.props.userData.mapboxVersion = getMapboxVersion(map);
   map.__deck = deck;
-  map.on('render', () => afterRender(deck, map));
+  map.on('render', () => {
+    if (deck.layerManager) afterRender(deck, map);
+  });
 
   return deck;
 }
@@ -81,7 +85,9 @@ export function drawLayer(deck, map, layer) {
     currentViewport = getViewport(deck, map, true);
     deck.props.userData.currentViewport = currentViewport;
   }
-
+  if (!deck.layerManager) {
+    return;
+  }
   deck._drawLayers('mapbox-repaint', {
     viewports: [currentViewport],
     // TODO - accept layerFilter in drawLayers' renderOptions
@@ -101,27 +107,45 @@ function getViewState(map) {
   };
 }
 
+function getMapboxVersion(map) {
+  // parse mapbox version string
+  let major = 0;
+  let minor = 0;
+  if (map.version) {
+    [major, minor] = map.version
+      .split('.')
+      .slice(0, 2)
+      .map(Number);
+  }
+  return {major, minor};
+}
+
 function getViewport(deck, map, useMapboxProjection = true) {
+  const {mapboxVersion} = deck.props.userData;
+
   return new WebMercatorViewport(
     Object.assign(
       {
         x: 0,
         y: 0,
         width: deck.width,
-        height: deck.height
+        height: deck.height,
+        repeat: true
       },
       getViewState(map),
-      // https://github.com/mapbox/mapbox-gl-js/issues/7573
       useMapboxProjection
         ? {
             // match mapbox's projection matrix
-            nearZMultiplier: deck.height ? 1 / deck.height : 1,
-            farZMultiplier: 1
+            // A change of near plane was made in 1.3.0
+            // https://github.com/mapbox/mapbox-gl-js/pull/8502
+            nearZMultiplier:
+              (mapboxVersion.major === 1 && mapboxVersion.minor >= 3) || mapboxVersion.major >= 2
+                ? 0.02
+                : 1 / (deck.height || 1)
           }
         : {
-            // use deck.gl's projection matrix
-            nearZMultiplier: 0.1,
-            farZMultiplier: 10
+            // use deck.gl's own default
+            nearZMultiplier: 0.1
           }
     )
   );

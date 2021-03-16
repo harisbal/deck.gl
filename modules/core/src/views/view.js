@@ -35,14 +35,15 @@ export default class View {
     this.id = id || this.constructor.displayName || 'view';
     this.type = type;
 
-    this.props = Object.assign({}, props, {
+    this.props = {
+      ...props,
       id: this.id,
       projectionMatrix,
       fovy,
       near,
       far,
       modelMatrix
-    });
+    };
 
     // Extents
     this._parseDimensions({x, y, width, height});
@@ -80,8 +81,7 @@ export default class View {
 
     // Resolve relative viewport dimensions
     const viewportDimensions = this.getDimensions({width, height});
-    const props = Object.assign({viewState}, viewState, this.props, viewportDimensions);
-    return this._getViewport(props);
+    return this._getViewport(viewState, viewportDimensions);
   }
 
   getViewStateId() {
@@ -109,7 +109,7 @@ export default class View {
       }
 
       // Merge in all props from View's viewState, except id
-      const newViewState = Object.assign({}, viewState);
+      const newViewState = {...viewState};
       for (const key in this.props.viewState) {
         if (key !== 'id') {
           newViewState[key] = this.props.viewState[key];
@@ -144,14 +144,14 @@ export default class View {
     if (typeof opts === 'function') {
       opts = {type: opts};
     }
-    return Object.assign({}, defaultOpts, opts);
+    return {...defaultOpts, ...opts};
   }
 
   // Overridable method
-  _getViewport(props) {
+  _getViewport(viewState, viewportDimensions) {
     // Get the type of the viewport
     const {type: ViewportType} = this;
-    return new ViewportType(props);
+    return new ViewportType({...viewState, ...this.props, ...viewportDimensions});
   }
 
   // Parse relative viewport dimension descriptors (e.g {y: '50%', height: '50%'})

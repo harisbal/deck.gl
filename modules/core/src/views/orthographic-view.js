@@ -14,23 +14,32 @@ function getProjectionMatrix({width, height, near, far}) {
   return new Matrix4().ortho({
     left: -width / 2,
     right: width / 2,
-    bottom: height / 2,
-    top: -height / 2,
+    bottom: -height / 2,
+    top: height / 2,
     near,
     far
   });
 }
 
 class OrthographicViewport extends Viewport {
-  constructor({id, x, y, width, height, near = 0.1, far = 1000, zoom = 0, target = [0, 0, 0]}) {
-    return new Viewport({
-      id,
-      x,
-      y,
+  constructor(props) {
+    const {
       width,
       height,
+      near = 0.1,
+      far = 1000,
+      zoom = 0,
+      target = [0, 0, 0],
+      flipY = true
+    } = props;
+    const scale = Math.pow(2, zoom);
+    super({
+      ...props,
+      // in case viewState contains longitude/latitude values,
+      // make sure that the base Viewport class does not treat this as a geospatial viewport
+      longitude: null,
       position: target,
-      viewMatrix,
+      viewMatrix: viewMatrix.clone().scale([scale, scale * (flipY ? -1 : 1), scale]),
       projectionMatrix: getProjectionMatrix({width, height, near, far}),
       zoom
     });
@@ -39,17 +48,15 @@ class OrthographicViewport extends Viewport {
 
 export default class OrthographicView extends View {
   constructor(props) {
-    super(
-      Object.assign({}, props, {
-        type: OrthographicViewport
-      })
-    );
+    super({
+      ...props,
+      type: OrthographicViewport
+    });
   }
 
   get controller() {
     return this._getControllerProps({
-      type: OrthographicController,
-      ViewportType: OrthographicViewport
+      type: OrthographicController
     });
   }
 }

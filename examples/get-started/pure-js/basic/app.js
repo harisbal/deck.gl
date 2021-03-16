@@ -27,7 +27,6 @@ export const deck = new Deck({
       filled: true,
       lineWidthMinPixels: 2,
       opacity: 0.4,
-      getLineDashArray: [3, 3],
       getLineColor: [60, 60, 60],
       getFillColor: [200, 200, 200]
     }),
@@ -37,7 +36,6 @@ export const deck = new Deck({
       // Styles
       filled: true,
       pointRadiusMinPixels: 2,
-      opacity: 1,
       pointRadiusScale: 2000,
       getRadius: f => 11 - f.properties.scalerank,
       getFillColor: [200, 0, 80, 180],

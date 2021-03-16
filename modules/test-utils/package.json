@@ -2,7 +2,7 @@
   "name": "@deck.gl/test-utils",
   "description": "Test utilities for deck.gl layers",
   "license": "MIT",
-  "version": "7.2.0-alpha.3",
+  "version": "8.5.0-alpha.3",
   "publishConfig": {
     "access": "public"
   },
@@ -14,18 +14,19 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/uber/deck.gl.git"
+    "url": "https://github.com/visgl/deck.gl.git"
   },
   "main": "dist/es5/index.js",
   "module": "dist/esm/index.js",
-  "esnext": "dist/es6/index.js",
   "files": [
     "dist",
     "src"
   ],
   "peerDependencies": {
-    "@deck.gl/core": "^7.0.0",
-    "@probe.gl/test-utils": "^3.0.1"
+    "@deck.gl/core": "^8.0.0",
+    "@luma.gl/test-utils": "^8.0.0",
+    "@luma.gl/webgl": "^8.0.0",
+    "@probe.gl/test-utils": "^3.2.1"
   },
   "scripts": {}
 }
