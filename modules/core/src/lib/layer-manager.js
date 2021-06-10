@@ -152,6 +152,10 @@ export default class LayerManager {
 
   // Set props needed for layer rendering and picking.
   setProps(props) {
+    if ('onError' in props) {
+      this._onError = props.onError;
+    }
+
     if ('debug' in props) {
       this._debug = props.debug;
     }
@@ -164,10 +168,6 @@ export default class LayerManager {
     // New layers will be processed in `updateLayers` in the next update cycle
     if ('layers' in props) {
       this._nextLayers = props.layers;
-    }
-
-    if ('onError' in props) {
-      this._onError = props.onError;
     }
   }
 

@@ -17,34 +17,39 @@ Each version should:
 Ref: http://keepachangelog.com/en/0.3.0/
 -->
 
-## deck.gl v8.5
-
-### deck.gl v8.5 Prereleases
-
-#### deck.gl [8.5.0-alpha.3] - Feb 25 2021
-
-- Bump luma.gl dependencies to 8.5.0-alpha (#5535)
-- Change build targets (#5528)
-- Bump loaders version to 3.0.0-alpha (#5531)
-- Syntax pass (#5520)
-- Update dev setup to support modern JS syntax (#5517)
-
-#### deck.gl [8.5.0-alpha.2] - Feb 22 2021
-
-- PathLayer: separate joint type and cap type props (#5508)
-- [react] Fix flickering in React.StrictMode (#5511)
-- Clear tooltip when viewport changes (#5509)
-
-#### deck.gl [8.5.0-alpha.1] - Feb 19 2021
-
-- Migrate DeckGL to functional component (#5495)
-- LayerManager: avoid layer update during setProps (#5494)
-- Add outline rendering to TextLayer (#5483)
-- Add background rendering to TextLayer (#5460)
-- Clean up assertions in core and layer modules (#5480)
-- Standardize autoHighlight logic in CompositeLayer (#5454)
-
 ## deck.gl v8.4
+
+#### deck.gl [8.4.16] - May 7 2021
+
+- fix for picking buffer generation with custom buffer over alloc (#5729)
+
+#### deck.gl [8.4.15] - May 3 2021
+
+- Fix TileLayer rerender after props change (#5721)
+
+#### deck.gl [8.4.14] - May 3 2021
+
+- Fix ScreenGridLayer picking error w/ cpu aggregation (#5710)
+- Update TerrainLayer props passed to TileLayer (#5720)
+- PathStyleExtension: allow picking gaps between solid lines (#5705)
+
+#### deck.gl [8.4.13] - Apr 11 2021
+
+- Fix BitmapLayer crash during multi-depth picking (#5640)
+
+#### deck.gl [8.4.12] - Apr 5 2021
+
+- Fix HeatmapLayer in offset mode (#5625)
+- Fix HeatmapLayer precision (#5621)
+- set onError before setLayers (#5601)
+
+#### deck.gl [8.4.11] - Mar 22 2021
+
+- Mapbox module: unset touchAction when using external gl (#5568)
+
+#### deck.gl [8.4.10] - Mar 4 2021
+
+- Fix MVT layers binary with empty tiles. Bump loaders.gl to 2.3.13 (#5559)
 
 #### deck.gl [8.4.9] - Feb 25 2021
 

@@ -23,6 +23,7 @@ const layer = new PolygonLayer({
   ...
   getDashArray: [3, 2],
   dashJustified: true,
+  dashGapPickable: true,
   extensions: [new PathStyleExtension({dash: true})]
 });
 ```
@@ -98,6 +99,13 @@ The offset to draw each path with, relative to the width of the path. Negative o
 * If a number is provided, it is used as the offset for all paths.
 * If a function is provided, it is called on each path to retrieve its offset.
 
+
+##### `dashGapPickable` (Boolean, optional)
+
+* Default `false`
+
+Only effective if `getDashArray` is specified. If `true`, gaps between solid strokes are pickable. If `false`, only the solid strokes are pickable. 
+
 ## Remarks
 
 ### Limitations
@@ -125,4 +133,4 @@ The high precision mode pre-calculates path length on the CPU, so it may be slow
 
 ## Source
 
-[modules/extensions/src/path-style](https://github.com/visgl/deck.gl/tree/master/modules/extensions/src/path-style)
+[modules/extensions/src/path-style](https://github.com/visgl/deck.gl/tree/8.4-release/modules/extensions/src/path-style)

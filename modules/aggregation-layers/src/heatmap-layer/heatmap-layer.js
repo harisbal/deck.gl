@@ -33,8 +33,7 @@ import {
   AttributeManager,
   COORDINATE_SYSTEM,
   log,
-  _mergeShaders as mergeShaders,
-  project32
+  _mergeShaders as mergeShaders
 } from '@deck.gl/core';
 import TriangleLayer from './triangle-layer';
 import AggregationLayer from '../aggregation-layer';
@@ -181,6 +180,9 @@ export default class HeatmapLayer extends AggregationLayer {
         updateTriggers
       }),
       {
+        // position buffer is filled with world coordinates generated from viewport.unproject
+        // i.e. LNGLAT if geospatial, CARTESIAN otherwise
+        coordinateSystem: COORDINATE_SYSTEM.DEFAULT,
         data: {
           attributes: {
             positions: triPositionBuffer,
@@ -269,7 +271,7 @@ export default class HeatmapLayer extends AggregationLayer {
   _setupAttributes() {
     const attributeManager = this.getAttributeManager();
     attributeManager.add({
-      positions: {size: 3, accessor: 'getPosition'},
+      positions: {size: 3, type: GL.DOUBLE, accessor: 'getPosition'},
       weights: {size: 1, accessor: 'getWeight'}
     });
     this.setState({positionAttributeName: 'positions'});
@@ -299,8 +301,7 @@ export default class HeatmapLayer extends AggregationLayer {
     const shaders = mergeShaders(
       {
         vs: weights_vs,
-        _fs: weights_fs,
-        modules: [project32]
+        _fs: weights_fs
       },
       shaderOptions
     );
@@ -377,7 +378,7 @@ export default class HeatmapLayer extends AggregationLayer {
       viewport.unproject([viewport.width, 0]),
       viewport.unproject([viewport.width, viewport.height]),
       viewport.unproject([0, viewport.height])
-    ];
+    ].map(p => p.map(Math.fround));
 
     // #1: get world bounds for current viewport extends
     const visibleWorldBounds = getBounds(viewportCorners); // TODO: Change to visible bounds
@@ -525,14 +526,22 @@ export default class HeatmapLayer extends AggregationLayer {
     const [minLong, minLat, maxLong, maxLat] = worldBounds;
     const {viewport} = this.context;
     const {textureSize} = this.state;
+    const {coordinateSystem} = this.props;
 
+    const offsetMode =
+      useLayerCoordinateSystem &&
+      (coordinateSystem === COORDINATE_SYSTEM.LNGLAT_OFFSETS ||
+        coordinateSystem === COORDINATE_SYSTEM.METER_OFFSETS);
+    const offsetOriginCommon = offsetMode
+      ? viewport.projectPosition(this.props.coordinateOrigin)
+      : [0, 0];
     const size = (textureSize * RESOLUTION) / viewport.scale;
 
     let bottomLeftCommon;
     let topRightCommon;
 
     // Y-axis is flipped between World and Common bounds
-    if (useLayerCoordinateSystem) {
+    if (useLayerCoordinateSystem && !offsetMode) {
       bottomLeftCommon = this.projectPosition([minLong, minLat, 0]);
       topRightCommon = this.projectPosition([maxLong, maxLat, 0]);
     } else {
@@ -540,9 +549,16 @@ export default class HeatmapLayer extends AggregationLayer {
       topRightCommon = viewport.projectPosition([maxLong, maxLat, 0]);
     }
     // Ignore z component
-    let commonBounds = bottomLeftCommon.slice(0, 2).concat(topRightCommon.slice(0, 2));
-    commonBounds = scaleToAspectRatio(commonBounds, size, size);
-    return commonBounds;
+    return scaleToAspectRatio(
+      [
+        bottomLeftCommon[0] - offsetOriginCommon[0],
+        bottomLeftCommon[1] - offsetOriginCommon[1],
+        topRightCommon[0] - offsetOriginCommon[0],
+        topRightCommon[1] - offsetOriginCommon[1]
+      ],
+      size,
+      size
+    );
   }
 
   // input commonBounds: [xMin, yMin, xMax, yMax]

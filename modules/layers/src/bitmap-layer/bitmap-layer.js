@@ -84,8 +84,10 @@ export default class BitmapLayer extends Layer {
     // setup model first
     if (changeFlags.extensionsChanged) {
       const {gl} = this.context;
-      this.state.model?.delete();
-      this.state.model = this._getModel(gl);
+      if (this.state.model) {
+        this.state.model.delete();
+      }
+      this.setState({model: this._getModel(gl)});
       this.getAttributeManager().invalidateAll();
     }
 
@@ -133,11 +135,13 @@ export default class BitmapLayer extends Layer {
     return info;
   }
 
-  _updateAutoHighlight(info) {
-    super._updateAutoHighlight({
-      ...info,
-      color: this.encodePickingColor(0)
-    });
+  // Override base Layer multi-depth picking logic
+  disablePickingIndex() {
+    this.setState({disablePicking: true});
+  }
+
+  restorePickingColors() {
+    this.setState({disablePicking: false});
   }
 
   _createMesh() {
@@ -174,21 +178,27 @@ export default class BitmapLayer extends Layer {
        |       |
       0,1 --- 1,1
     */
-    return new Model(gl, {
-      ...this.getShaders(),
-      id: this.props.id,
-      geometry: new Geometry({
-        drawMode: GL.TRIANGLES,
-        vertexCount: 6
-      }),
-      isInstanced: false
-    });
+    return new Model(
+      gl,
+      Object.assign({}, this.getShaders(), {
+        id: this.props.id,
+        geometry: new Geometry({
+          drawMode: GL.TRIANGLES,
+          vertexCount: 6
+        }),
+        isInstanced: false
+      })
+    );
   }
 
   draw(opts) {
-    const {uniforms} = opts;
-    const {model, coordinateConversion, bounds} = this.state;
+    const {uniforms, moduleParameters} = opts;
+    const {model, coordinateConversion, bounds, disablePicking} = this.state;
     const {image, desaturate, transparentColor, tintColor} = this.props;
+
+    if (moduleParameters.pickingActive && disablePicking) {
+      return;
+    }
 
     // // TODO fix zFighting
     // Render the image
